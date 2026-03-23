@@ -606,7 +606,7 @@ function Cals({kcal,updKcal}){
 
 function KcalCard({meal,data,onSave,onClear}){
   const[loading,setLoading]=useState(false),[err,setErr]=useState(null);
-  const ref=useRef();
+  const galRef=useRef();
 
   const handle=async e=>{
     const file=e.target.files?.[0];if(!file)return;
