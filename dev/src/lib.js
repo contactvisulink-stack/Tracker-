@@ -725,3 +725,169 @@ export function buildContext(todayK) {
   if (ws[0]) lines.push(`Dernière séance (${ws[0].title}, ${fmtDay(ws[0].date.slice(0, 10), { day: "numeric", month: "short" })}) : ${ws[0].exercises.map((e) => `${e.name} ${e.sets.filter((s) => !s.warm).map((s) => (s.w ? `${fdec(s.w, 2)}×${s.r}` : `${s.r}`)).join(" / ")}`).join(" ; ")}.`);
   return lines.join("\n");
 }
+
+// ═════════════════════════════════════════════════════════════
+// v3 — Focus : rythme, prochaine action, missions, encouragements
+// ═════════════════════════════════════════════════════════════
+export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const minutesOf = (hhmm) => { const [h, m] = (hhmm || "12:00").split(":").map(Number); return h * 60 + m; };
+
+/** Anneaux du viseur : 1 = objectif atteint */
+export function rings(d, S) {
+  const t = dayTot(d), h = daySleepH(d);
+  return { kcal: t.k / S.kcal, prot: t.p / S.prot, sleep: h != null ? h / S.sleep : 0, t, h };
+}
+
+/** Où tu devrais en être à cette heure-ci (du réveil jusqu'à ~1 h avant ton coucher habituel) */
+export function pace(k, now, S) {
+  const d = getDay(k), t = dayTot(d);
+  const b = keyToDate(k);
+  const wake = d.sleep?.wake ? new Date(d.sleep.wake) : new Date(b.getFullYear(), b.getMonth(), b.getDate(), 9, 0);
+  const st = sleepStats(addDays(k, -1), 7);
+  const endMin = clamp(st.avgBed != null ? st.avgBed - 60 : 390, 300, 480); // entre 23 h et 2 h
+  const end = new Date(b.getFullYear(), b.getMonth(), b.getDate(), 18, 0);
+  end.setMinutes(end.getMinutes() + endMin);
+  const frac = clamp((now - wake) / (end - wake), 0, 1);
+  const expected = S.kcal * frac;
+  const hoursLeft = Math.max(0, (end - now) / 3.6e6);
+  const remaining = Math.max(0, S.kcal - t.k);
+  const mealsLeft = Math.max(1, Math.round(hoursLeft / 3));
+  const lastT = d.entries.length ? d.entries[d.entries.length - 1].t : null;
+  let sinceLast = null;
+  if (lastT) {
+    let m = now.getHours() * 60 + now.getMinutes() - minutesOf(lastT);
+    if (m < -180) m += 1440;
+    sinceLast = Math.max(0, m);
+  }
+  return { expected, diff: t.k - expected, frac, end, hoursLeft, remaining, perMeal: remaining / mealsLeft, sinceLast, t };
+}
+
+/** Heure de la nuit en toutes lettres : « 2 h 20 », « 1 h » */
+export const hFr = (nightMinutes) => { const t = (Math.round(nightMinutes / 5) * 5 + 1080) % 1440; const h = Math.floor(t / 60), m = t % 60; return m ? `${h} h ${pad(m)}` : `${h} h`; };
+
+/** Favori dont les calories collent le mieux à ce qu'il te faut */
+export function bestFav(target) {
+  const favs = getFavs().map((f) => ({ f, k: itemsTot(f.items).k }));
+  if (!favs.length) return null;
+  favs.sort((a, b) => Math.abs(a.k - target) - Math.abs(b.k - target));
+  return favs[0];
+}
+
+/** Derniers repas différents, pour « refaire la même chose » */
+export function recentEntries(todayK, n = 5) {
+  const seen = new Set(), out = [];
+  for (let i = 0; i < 21 && out.length < n; i++) {
+    const k = addDays(todayK, -i), d = getDay(k);
+    for (const e of [...d.entries].reverse()) {
+      const sig = e.items.map((it) => `${it.fid || it.name}:${it.g}`).sort().join("|");
+      if (!sig || seen.has(sig)) continue;
+      seen.add(sig);
+      out.push({ k, e, tot: entryTot(e) });
+      if (out.length >= n) break;
+    }
+  }
+  return out;
+}
+
+/** Séance du jour : à faire, faite ou repos */
+export function trainingStatus(k) {
+  const ws = getWorkouts();
+  const S = getSettings();
+  const todayW = ws.find((w) => logicalKey(new Date(w.date), S.dayStart) === k) || null;
+  const last = ws[0];
+  const daysSince = last ? daysBetween(logicalKey(new Date(last.date), S.dayStart), k) : 99;
+  const wk = weekWorkouts(k, ws).length;
+  const daysLeft = 7 - ((keyToDate(k).getDay() + 6) % 7);
+  const need = Math.max(0, 3 - wk);
+  const due = !todayW && need > 0 && (daysSince >= 2 || need * 2 - 1 > daysLeft);
+  return { todayW, due, rest: !todayW && !due, next: nextSession(ws), wk, daysSince, need };
+}
+
+/** La prochaine chose à faire, par ordre d'importance */
+export function focusActions(k, now, S) {
+  const d = getDay(k), t = dayTot(d);
+  const hr = now.getHours() + now.getMinutes() / 60;
+  const night = store.get("night", null);
+  const acts = [];
+  const add = (a) => acts.push(a);
+
+  if (night) {
+    const h = (now - new Date(night.bed)) / 3.6e6;
+    if (h >= 3) add({ id: "wake", prio: 100, ic: "☀️", tone: "moon", title: "Bien dormi ?", text: `Téléphone posé à ${hm(night.bed)}. Appuie dès que tu es levé.` });
+    else add({ id: "sleeping", prio: 100, ic: "🌙", tone: "moon", title: "Bonne nuit", text: "Téléphone posé. Le reste attendra demain." });
+    return acts;
+  }
+  const late = hr >= 23 || hr < 4.5;
+  if (late) {
+    const st = sleepStats(addDays(k, 0), 7);
+    const goal = st.avgBed != null ? Math.round(Math.max(300, st.avgBed - 20) / 10) * 10 : null;
+    add({ id: "bed", prio: 92, ic: "🌙", tone: "moon", title: "Pose le téléphone", text: goal != null ? `Ces 7 derniers soirs, tu t'es couché vers ${hFr(st.avgBed)}. Vise ${hFr(goal)} ce soir.` : "Un appui au moment où tu le poses, un autre au réveil." });
+  }
+  const hasW = getWeights()[k] != null;
+  if (keyToDate(k).getDay() === S.weighDay && !hasW && hr >= 5 && hr < 13)
+    add({ id: "weigh", prio: 88, ic: "⚖️", tone: "sky", title: "Pesée du jour", text: "À jeun, après les toilettes, même balance." });
+  const sinceWake = d.sleep?.wake ? (now - new Date(d.sleep.wake)) / 3.6e6 : null;
+  if (!d.h.light && hr >= 6 && hr < 17 && (sinceWake == null || sinceWake < 5))
+    add({ id: "light", prio: 84, ic: "☀️", tone: "sun", title: "10 min dehors", text: "La lumière du matin avance ton horloge : c'est ce qui t'aidera à te coucher plus tôt." });
+  if (!d.sleep && hr >= 5 && hr < 15)
+    add({ id: "logNight", prio: 72, ic: "🌙", tone: "moon", title: "Note ta nuit", text: "Tu n'as pas appuyé hier soir ? Indique tes heures en 10 secondes." });
+
+  const p = pace(k, now, S);
+  const behind = -p.diff;
+  if (t.k < S.kcal - 250 && hr >= 7 && !late) {
+    const noFood = !d.entries.length;
+    const since = p.sinceLast == null ? 999 : p.sinceLast;
+    if ((noFood && hr >= 10) || since >= 210 || (behind > 250 && since >= 120))
+      add({ id: "eat", prio: 70 + Math.min(18, behind / 120), ic: "🍽️", tone: "sun", title: noFood ? "Premier repas" : "C'est l'heure de manger", text: `Vise environ ${fint(Math.round(clamp(p.perMeal, 350, 1100) / 50) * 50)} kcal.`, target: clamp(p.perMeal, 350, 1100) });
+  }
+  if (t.k >= S.kcal * 0.75 && t.p < S.prot - 10)
+    add({ id: "prot", prio: 62, ic: "🥩", tone: "flesh", title: `Encore ${fint(S.prot - t.p)} g de protéines`, text: "Un shaker whey + lait en apporte une trentaine." });
+  const tr = trainingStatus(k);
+  if (tr.due && hr >= 8 && hr < 21)
+    add({ id: "train", prio: 64, ic: "💪", tone: "sun", title: `Séance ${tr.next} aujourd'hui`, text: "Tes charges sont prêtes dans Sport." });
+  if (!creatineDone(d) && hr >= 11 && !late)
+    add({ id: "crea", prio: 50, ic: "💊", tone: "sky", title: "Créatine", text: "5 g, dans un shaker ou un verre d'eau." });
+  if ((d.water || 0) < S.water && hr >= 14 && !late)
+    add({ id: "water", prio: 40, ic: "💧", tone: "sky", title: `${fdec(S.water - (d.water || 0))} L d'eau à boire`, text: "Une bouteille à côté de toi, ça suffit." });
+  if (S.skincare && !d.h.skm && hr >= 6 && hr < 13) add({ id: "skm", prio: 34, ic: "🧴", tone: "sky", title: "Skincare du matin", text: "Deux minutes." });
+  if (S.skincare && !d.h.sks && (hr >= 21 || hr < 4.5)) add({ id: "sks", prio: 44, ic: "🧴", tone: "moon", title: "Skincare du soir", text: "Avant de poser le téléphone." });
+
+  if (!acts.length) {
+    const sc = dayScore(d, S);
+    if (sc.n === sc.max) add({ id: "done", prio: 1, ic: "🎯", tone: "sun", title: "Journée bouclée", text: "Tout est fait. Profite de ta soirée." });
+    else if (t.k >= S.kcal) add({ id: "fed", prio: 1, ic: "🔥", tone: "sun", title: "Calories atteintes", text: "Le plus dur est fait aujourd'hui." });
+    else add({ id: "chill", prio: 1, ic: "✨", tone: "sun", title: "Tout roule", text: `Il te reste ${fint(S.kcal - t.k)} kcal pour la journée.` });
+  }
+  return acts.sort((a, b) => b.prio - a.prio);
+}
+
+/** Une phrase d'encouragement tirée de tes vraies données */
+export function insight(k, S) {
+  const out = [];
+  const streak = kcalStreak(k, S);
+  if (streak >= 2) out.push(`🔥 ${streak} jours d'affilée à plus de 90 % de tes calories.`);
+  const wl = weightList();
+  if (wl.length >= 2) {
+    const dW = wl[wl.length - 1][1] - wl[0][1];
+    if (dW > 0.2) out.push(`💪 +${fdec(dW)} kg depuis le ${fmtDay(wl[0][0], { day: "numeric", month: "long" })}.`);
+  }
+  const st = sleepStats(k, 7), prev = sleepStats(addDays(k, -7), 7);
+  if (st.avgBed != null && prev.avgBed != null && prev.count >= 2 && st.avgBed < prev.avgBed - 10)
+    out.push(`🌙 Tu te couches ${Math.round(prev.avgBed - st.avgBed)} min plus tôt que la semaine d'avant.`);
+  let protDays = 0;
+  for (let i = 1; i <= 7; i++) if (dayTot(getDay(addDays(k, -i))).p >= S.prot) protDays++;
+  if (protDays >= 3) out.push(`🥩 Protéines au rendez-vous ${protDays} jours sur les 7 derniers.`);
+  const tr = trainingStatus(k);
+  if (tr.wk >= 1) out.push(`🏋️ ${tr.wk}/3 séances cette semaine.`);
+  if (!out.length) return null;
+  return out[keyToDate(k).getDate() % out.length];
+}
+
+/** Petits instantanés pour le bouton « Annuler » */
+export const snapDay = (k) => { const s = readRaw(PFX + "day:" + k); return () => { if (s == null) { try { localStorage.removeItem(PFX + "day:" + k); } catch {} emit(); } else { writeRaw(PFX + "day:" + k, s); emit(); } }; };
+export const snapKey = (key, raw = false) => { const full = raw ? key : PFX + key; const s = readRaw(full); return () => { if (s == null) { try { localStorage.removeItem(full); } catch {} } else writeRaw(full, s); emit(); }; };
+export const quickShaker = () => {
+  const whey = findFood("whey") || allFoods().find((f) => f.id === "wpi");
+  const milk = findFood("lait_entier");
+  return [whey && itemFromFood(whey, 30), milk && itemFromFood(milk, 300)].filter(Boolean);
+};
