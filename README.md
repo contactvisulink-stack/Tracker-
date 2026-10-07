@@ -1,7 +1,7 @@
 # Isma Daily
 
-Tracker perso en mode focus : un viseur à trois anneaux (calories, protéines, sommeil),
-la prochaine chose à faire, les missions du jour, les séances Hevy et le poids.
+Tracker perso façon tableau de bord en verre : calories, missions du jour, sommeil, minuteur,
+météo de Perth, séances Hevy et poids.
 Ouvert sur iPhone depuis l'écran d'accueil : https://contactvisulink-stack.github.io/Tracker-/
 
 - `index.html` : l'app (un seul fichier, rien à installer).

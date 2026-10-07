@@ -20,7 +20,7 @@ export const store = {
   emit,
 };
 
-export const DEFAULTS = { kcal: 3000, prot: 100, water: 2.5, sleep: 7.5, goalW: 76, weighDay: 1, lat: 15, dayStart: 5, skincare: true };
+export const DEFAULTS = { kcal: 3000, prot: 100, water: 2.5, sleep: 7.5, goalW: 76, weighDay: 1, lat: 15, dayStart: 5 };
 export const getSettings = () => ({ ...DEFAULTS, ...store.get("settings", {}) });
 export const setSettings = (patch) => store.set("settings", { ...store.get("settings", {}), ...patch });
 
@@ -335,7 +335,6 @@ export function dayChecks(d, S) {
     { id: "light", ic: "☀️", label: "Lumière", ok: !!d.h.light },
     { id: "creatine", ic: "💊", label: "Créatine", ok: creatineDone(d) },
   ];
-  if (S.skincare) list.push({ id: "skm", ic: "🌤️", label: "Skin matin", ok: !!d.h.skm }, { id: "sks", ic: "🌙", label: "Skin soir", ok: !!d.h.sks });
   return list;
 }
 export function dayScore(d, S) {
@@ -849,8 +848,6 @@ export function focusActions(k, now, S) {
     add({ id: "crea", prio: 50, ic: "💊", tone: "sky", title: "Créatine", text: "5 g, dans un shaker ou un verre d'eau." });
   if ((d.water || 0) < S.water && hr >= 14 && !late)
     add({ id: "water", prio: 40, ic: "💧", tone: "sky", title: `${fdec(S.water - (d.water || 0))} L d'eau à boire`, text: "Une bouteille à côté de toi, ça suffit." });
-  if (S.skincare && !d.h.skm && hr >= 6 && hr < 13) add({ id: "skm", prio: 34, ic: "🧴", tone: "sky", title: "Skincare du matin", text: "Deux minutes." });
-  if (S.skincare && !d.h.sks && (hr >= 21 || hr < 4.5)) add({ id: "sks", prio: 44, ic: "🧴", tone: "moon", title: "Skincare du soir", text: "Avant de poser le téléphone." });
 
   if (!acts.length) {
     const sc = dayScore(d, S);
@@ -891,3 +888,73 @@ export const quickShaker = () => {
   const milk = findFood("lait_entier");
   return [whey && itemFromFood(whey, 30), milk && itemFromFood(milk, 300)].filter(Boolean);
 };
+
+
+// ═════════════════════════════════════════════════════════════
+// v4 — Tableau de bord
+// ═════════════════════════════════════════════════════════════
+/** Calories cumulées au fil de la journée (pour la courbe de l'accueil) */
+export function kcalSeries(k, now) {
+  const d = getDay(k);
+  const b = keyToDate(k);
+  const start = d.sleep?.wake ? new Date(d.sleep.wake) : new Date(b.getFullYear(), b.getMonth(), b.getDate(), 8, 0);
+  const toDate = (t) => { const [h, m] = t.split(":").map(Number); const x = new Date(b.getFullYear(), b.getMonth(), b.getDate(), h, m); if (h < 5) x.setDate(x.getDate() + 1); return x; };
+  let cum = 0;
+  const pts = [{ t: start, v: 0, meal: false }];
+  for (const e of d.entries) { cum += entryTot(e).k; pts.push({ t: toDate(e.t), v: cum, meal: true, label: e.label }); }
+  const end = now > start ? now : new Date(start.getTime() + 3600e3);
+  pts.push({ t: end, v: cum, meal: false, now: true });
+  return pts.filter((p, i) => i === 0 || p.t >= pts[0].t).sort((a, b2) => a.t - b2.t);
+}
+
+/** Moyennes de la semaine en cours (lundi → aujourd'hui) */
+export function weekAverages(k, S) {
+  const ws = weekStartKey(k);
+  const n = daysBetween(ws, k) + 1;
+  const days = Array.from({ length: n }, (_, i) => getDay(addDays(ws, i)));
+  const fed = days.filter((d, i) => hasFood(d) && (i < n - 1 || dayTot(d).k >= S.kcal * 0.5));
+  const avg = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+  const kcal = avg(fed.map((d) => dayTot(d).k));
+  const prot = avg(fed.map((d) => dayTot(d).p));
+  const sl = avg(days.map(daySleepH).filter((h) => h != null));
+  const wk = weekWorkouts(k, getWorkouts()).length;
+  const parts = [kcal != null ? Math.min(1, kcal / S.kcal) : null, prot != null ? Math.min(1, prot / S.prot) : null, sl != null ? Math.min(1, sl / S.sleep) : null, Math.min(1, wk / 3)].filter((x) => x != null);
+  return { kcal, prot, sleep: sl, wk, score: parts.length ? avg(parts) : 0, days: n };
+}
+
+/** Ce qui arrive bientôt : coucher visé, prochaine séance, pesée */
+export function upcoming(k, S, now) {
+  const out = [];
+  const st = sleepStats(k, 7);
+  if (st.avgBed != null) out.push({ k, title: "Poser le téléphone", sub: `Vise ${hFr(Math.round(Math.max(300, st.avgBed - 20) / 10) * 10)} ce soir`, dot: "var(--moon)" });
+  const tr = trainingStatus(k);
+  if (!tr.todayW) out.push({ k: tr.due ? k : addDays(k, 1), title: `Séance ${tr.next}`, sub: tr.due ? "Aujourd'hui, tes charges sont prêtes" : "Demain, après une journée de repos", dot: "var(--sun)" });
+  else out.push({ k: addDays(k, tr.wk >= 3 ? (8 - ((keyToDate(k).getDay() + 6) % 7)) : 2), title: `Séance ${tr.next}`, sub: tr.wk >= 3 ? "La semaine prochaine" : "Après-demain", dot: "var(--sun)" });
+  const wd = keyToDate(k).getDay();
+  let delta = (S.weighDay - wd + 7) % 7;
+  if (delta === 0 && getWeights()[k] != null) delta = 7;
+  out.push({ k: addDays(k, delta), title: "Pesée", sub: delta === 0 ? "Ce matin, à jeun" : `${cap(fmtDay(addDays(k, delta), { weekday: "long" }))} matin, à jeun`, dot: "var(--sky)" });
+  return out.sort((a, b) => a.k.localeCompare(b.k));
+}
+
+/** Météo de Perth (Open-Meteo, gratuit, sans clé), gardée 30 min */
+const WMO = [[[0], "Ciel dégagé", "☀️", "🌙"], [[1], "Plutôt dégagé", "🌤️", "🌙"], [[2], "Quelques nuages", "⛅", "☁️"], [[3], "Couvert", "☁️", "☁️"],
+  [[45, 48], "Brouillard", "🌫️", "🌫️"], [[51, 53, 55, 56, 57], "Bruine", "🌦️", "🌧️"], [[61, 63, 65, 66, 67], "Pluie", "🌧️", "🌧️"],
+  [[71, 73, 75, 77, 85, 86], "Neige", "🌨️", "🌨️"], [[80, 81, 82], "Averses", "🌦️", "🌧️"], [[95, 96, 99], "Orage", "⛈️", "⛈️"]];
+export const wmo = (code, day = true) => { const w = WMO.find(([c]) => c.includes(code)) || WMO[2]; return { label: w[1], ic: day ? w[2] : w[3] }; };
+let wxLoading = false;
+export function getWeather() {
+  const c = store.get("wx", null);
+  const fresh = c && Date.now() - c.at < 30 * 60e3;
+  if (!fresh && !wxLoading && typeof fetch !== "undefined") {
+    wxLoading = true;
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=-31.93&longitude=115.89&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=Australia%2FPerth&forecast_days=1")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (j?.current) store.set("wx", { at: Date.now(), t: j.current.temperature_2m, code: j.current.weather_code, day: !!j.current.is_day, max: j.daily?.temperature_2m_max?.[0], min: j.daily?.temperature_2m_min?.[0] });
+      })
+      .catch(() => {})
+      .finally(() => { wxLoading = false; });
+  }
+  return c;
+}

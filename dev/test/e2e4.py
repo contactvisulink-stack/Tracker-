@@ -1,4 +1,4 @@
-"""Parcours complet de la v3 dans Chromium (iPhone, heure de Perth), API Claude simulée."""
+"""Parcours complet de la v4 dans Chromium (iPhone, heure de Perth), API Claude simulée."""
 import json, os, sys
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
@@ -38,43 +38,45 @@ with sync_playwright() as p:
     page.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
     page.on("console", lambda m: errors.append(f"{m.type}: {m.text}") if m.type == "error" and "ERR_TUNNEL" not in m.text and "ERR_FILE_NOT_FOUND" not in m.text else None)
     page.route("https://api.anthropic.com/**", api)
+    page.route("https://api.open-meteo.com/**", lambda route: route.fulfill(status=200, headers={"access-control-allow-origin": "*", "content-type": "application/json"},
+        body=json.dumps({"current": {"temperature_2m": 21.4, "weather_code": 2, "is_day": 1}, "daily": {"temperature_2m_max": [24.8], "temperature_2m_min": [12.1]}})))
     page.clock.install(time=datetime(2026, 10, 8, 1, 30, tzinfo=P))
     page.goto(URL); page.wait_for_timeout(900)
     store = lambda k: json.loads(page.evaluate(f"localStorage.getItem({json.dumps(k)})") or "null")
 
     # 1) Nuit : je pose le téléphone (1 h 30), réveil à 9 h 40
-    ok("en-tête de nuit", "Il est tard" in page.locator(".top-t").inner_text())
+    ok("salutation de nuit", "Il est tard" in page.locator(".greet-hello").inner_text())
     page.get_by_role("button", name="🌙 Je pose le téléphone").click(); page.wait_for_timeout(300)
     ok("nuit en cours", store("t2:night") is not None)
     page.clock.set_system_time(datetime(2026, 10, 8, 9, 40, tzinfo=P)); page.evaluate("dispatchEvent(new Event('focus'))"); page.wait_for_timeout(400)
+    page.screenshot(path=f"{OUT}/e0-matin.png")
     page.get_by_role("button", name="☀️ Je suis levé").click(); page.wait_for_timeout(400)
     s = (store("t2:day:2026-10-08") or {}).get("sleep")
     ok("nuit rangée le 08/10", s is not None, s and f"{s['bed']} → {s['wake']}")
     page.screenshot(path=f"{OUT}/e1-reveil.png")
-    # Annuler fonctionne
     page.get_by_role("button", name="Annuler").click(); page.wait_for_timeout(300)
     ok("annuler le réveil remet la nuit en cours", store("t2:night") is not None and not (store("t2:day:2026-10-08") or {}).get("sleep"))
     page.get_by_role("button", name="☀️ Je suis levé").click(); page.wait_for_timeout(300)
 
-    # 2) Lumière du matin depuis « Maintenant »
+    # 2) Lumière du matin : la mission « Maintenant »
     page.clock.set_system_time(datetime(2026, 10, 8, 10, 0, tzinfo=P)); page.evaluate("dispatchEvent(new Event('focus'))"); page.wait_for_timeout(300)
-    title = page.locator(".now-title").inner_text()
-    ok("action du matin = lumière", "dehors" in title, title)
-    page.locator(".now .cta").first.click(); page.wait_for_timeout(300)
+    hot = page.locator(".mrow.hot .ml").inner_text()
+    ok("mission du matin = lumière", "Lumière" in hot, hot)
+    page.locator(".mrow.hot").click(); page.wait_for_timeout(300)
     ok("lumière cochée", (store("t2:day:2026-10-08") or {}).get("h", {}).get("light") is True)
 
-    # 3) Midi : on n'a rien mangé → « Premier repas » + favori en un tap
+    # 3) Midi : rien mangé → suggestion de repas en un tap
     page.clock.set_system_time(datetime(2026, 10, 8, 12, 30, tzinfo=P)); page.evaluate("dispatchEvent(new Event('focus'))"); page.wait_for_timeout(300)
-    title = page.locator(".now-title").inner_text()
-    ok("action de midi = manger", "repas" in title.lower() or "manger" in title.lower(), title)
+    hot = page.locator(".mrow.hot .ml").inner_text()
+    ok("mission de midi = calories", "Calories" in hot, hot)
     page.screenshot(path=f"{OUT}/e2-midi.png")
-    page.locator(".now .cta.sun").first.click(); page.wait_for_timeout(500)
+    page.locator(".suggest").click(); page.wait_for_timeout(500)
     d = store("t2:day:2026-10-08")
     ok("favori ajouté en un tap", len(d["entries"]) == 1, d["entries"][0]["label"] if d["entries"] else "")
 
     # 4) Missions : eau +0,5 L deux fois, créatine
-    page.locator(".tile", has_text="Eau").click(); page.wait_for_timeout(150)
-    page.locator(".tile", has_text="Eau").click(); page.wait_for_timeout(150)
+    page.locator(".mrow", has_text="Eau").click(); page.wait_for_timeout(150)
+    page.locator(".mrow", has_text="Eau").click(); page.wait_for_timeout(150)
     ok("eau à 1 L", store("t2:day:2026-10-08")["water"] == 1.0)
 
     # 5) Ajout rapide par texte (+)
@@ -129,15 +131,26 @@ with sync_playwright() as p:
     ok("suggestion après import", "12,5" in t, t)
     page.screenshot(path=f"{OUT}/e5-sport.png", full_page=True)
 
-    # 11) Poids
-    page.get_by_role("button", name="Progrès").click(); page.wait_for_timeout(300)
-    page.locator(".seg button", has_text="Poids").click(); page.wait_for_timeout(300)
+    # 11) Poids via le raccourci « Pesée »
+    page.get_by_role("button", name="Accueil").click(); page.wait_for_timeout(300)
+    page.locator(".sc", has_text="Pesée").click(); page.wait_for_timeout(400)
     page.locator("input[aria-label='Poids en kg']").fill("52,6"); page.get_by_role("button", name="Noter").click(); page.wait_for_timeout(300)
     ok("pesée notée", store("iwt").get("2026-10-08") == 52.6)
     page.screenshot(path=f"{OUT}/e6-poids.png", full_page=True)
 
+    # 11 bis) Minuteur focus : 25 min puis fin
+    page.get_by_role("button", name="Accueil").click(); page.wait_for_timeout(300)
+    page.locator(".timer .pill-btn", has_text="Lancer").click(); page.wait_for_timeout(200)
+    ok("minuteur lancé", (store("t2:timer") or {}).get("end") is not None)
+    page.clock.run_for(25 * 60 * 1000 + 1500); page.wait_for_timeout(300)
+    ok("fin du minuteur annoncée", "Session focus terminée" in page.locator(".toast").inner_text())
+
+    # 11 ter) Semaine : changer d'indicateur
+    page.locator(".week .pill").click(); page.wait_for_timeout(200)
+    ok("semaine en protéines", "Protéines" in page.locator(".week .pill").inner_text())
+
     # 12) Coach (API simulée)
-    page.get_by_role("button", name="Coach").click(); page.wait_for_timeout(300)
+    page.get_by_label("Coach").click(); page.wait_for_timeout(300)
     page.locator(".sugg").first.click(); page.wait_for_timeout(800)
     ok("réponse du coach affichée", "750 kcal" in page.locator(".msg.assistant").last.inner_text())
     page.screenshot(path=f"{OUT}/e7-coach.png")
@@ -149,9 +162,9 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(200)
 
     # 14) Retour Focus le soir
-    page.clock.set_system_time(datetime(2026, 10, 8, 20, 30, tzinfo=P)); page.get_by_role("button", name="Focus").click(); page.evaluate("dispatchEvent(new Event('focus'))"); page.wait_for_timeout(1500)
-    page.screenshot(path=f"{OUT}/e9-focus-soir.png")
-    page.screenshot(path=f"{OUT}/e9-focus-soir-full.png", full_page=True)
+    page.clock.set_system_time(datetime(2026, 10, 8, 20, 30, tzinfo=P)); page.get_by_role("button", name="Accueil").click(); page.evaluate("dispatchEvent(new Event('focus'))"); page.wait_for_timeout(1500)
+    page.screenshot(path=f"{OUT}/e9-accueil-soir.png")
+    page.screenshot(path=f"{OUT}/e9-accueil-soir-full.png", full_page=True)
     ok("ancienne journée migrée", store("t2:day:2026-03-25") is not None)
     ok("clé API conservée", store("iak") == "sk-ant-test-0000")
     b.close()

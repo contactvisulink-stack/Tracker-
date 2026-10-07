@@ -7,7 +7,7 @@ const shortDate = (k) => L.cap(L.fmtDay(k, { weekday: "short", day: "numeric", m
 const DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
 export function Progress({ ctx }) {
-  const [tab, setTab] = useState("stats");
+  const [tab, setTab] = useState(ctx.sub === "weight" ? "weight" : "stats");
   return (
     <div className="page">
       <div className="seg">

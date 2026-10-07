@@ -184,16 +184,13 @@ export function Settings({ ctx }) {
           {[0, 2, 3, 4, 5, 6].map((h) => <option key={h} value={h}>{h === 0 ? "minuit" : `${h} h du matin`}{h === 5 ? " (conseillé)" : ""}</option>)}
         </select>
       </label>
-      <button className={"toggle" + (S.skincare ? " on" : "")} onClick={() => L.setSettings({ skincare: !S.skincare })} aria-pressed={S.skincare}>
-        <span>Missions skincare</span><span className="sw"><i /></span>
-      </button>
 
       <div className="sub-h mt18">Sauvegarde</div>
       <p className="hint mb10">Tes données restent sur ce téléphone. Copie une sauvegarde de temps en temps (sans la clé API).</p>
       <button className="cta ghost full" onClick={copyBackup}>Copier ma sauvegarde</button>
       <textarea className="inp mt10" style={{ minHeight: 70 }} value={restore} onChange={(e) => setRestore(e.target.value)} placeholder="Pour restaurer : colle une sauvegarde ici" />
       {restore.trim() && <button className="cta ghost full mt8" onClick={doRestore}>Restaurer cette sauvegarde</button>}
-      <p className="hint center mt18">Isma Daily, version 3 · octobre 2026</p>
+      <p className="hint center mt18">Isma Daily, version 4 · octobre 2026</p>
     </Sheet>
   );
 }

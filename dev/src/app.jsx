@@ -2,27 +2,27 @@ import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import * as L from "./lib.js";
 import { Icon, Confetti, buzz } from "./ui.jsx";
-import { Focus } from "./focus.jsx";
+import { Home } from "./home.jsx";
 import { Food, AddFood, Foods } from "./food.jsx";
 import { Sport, HevyImport } from "./sport.jsx";
 import { Progress } from "./progress.jsx";
 import { SleepEdit, Coach, Settings } from "./sheets.jsx";
 
-const greet = (h) => (h >= 5 && h < 12 ? "Bonjour" : h >= 12 && h < 18 ? "Salut" : h >= 18 && h < 23 ? "Bonsoir" : "Il est tard");
 const ambient = (h) => (h >= 5 && h < 10 ? "dawn" : h >= 10 && h < 17 ? "day" : h >= 17 && h < 22 ? "dusk" : "night");
-const TITLES = { food: "Manger", sport: "Sport", progress: "Progrès" };
+const TITLES = { home: "Isma Daily", food: "Manger", sport: "Sport", progress: "Progrès" };
 
 function App() {
   const [, setRev] = useState(0);
   useEffect(() => L.store.subscribe(() => setRev((r) => r + 1)), []);
   const [now, setNow] = useState(Date.now());
-  const [tab, setTab] = useState("focus");
+  const [tab, setTab] = useState("home");
+  const [sub, setSub] = useState(null);
   const tabRef = useRef(tab);
   tabRef.current = tab;
   useEffect(() => {
     const upd = () => {
       setNow(Date.now());
-      if (document.visibilityState === "visible" && tabRef.current === "focus" && L.store.get("night", null)) window.scrollTo({ top: 0 });
+      if (document.visibilityState === "visible" && tabRef.current === "home" && L.store.get("night", null)) window.scrollTo({ top: 0 });
     };
     const iv = setInterval(upd, 30000);
     document.addEventListener("visibilitychange", upd);
@@ -56,10 +56,10 @@ function App() {
     cRef.current = setTimeout(() => setCel(null), big ? 3200 : 2400);
   };
   const ctx = {
-    S, todayK, now, say, celebrate,
+    S, todayK, now, say, celebrate, sub,
     open: (s) => setSheet(s),
     close: () => setSheet(null),
-    go: (t, k) => { setTab(t); setFoodK(k && k !== todayK ? k : null); window.scrollTo({ top: 0 }); },
+    go: (t, k, sb) => { setTab(t); setSub(sb || null); setFoodK(k && k !== todayK ? k : null); window.scrollTo({ top: 0 }); },
   };
 
   // Célébrations : une seule fois par objectif et par jour
@@ -82,11 +82,11 @@ function App() {
 
   return (
     <div className={"app amb-" + ambient(h)}>
-      <div className="ambient" aria-hidden="true" />
-      <header className="top">
+      <div className="ambient" aria-hidden="true"><i className="b1" /><i className="b2" /><i className="b3" /><i className="b4" /></div>
+      <header className={"top" + (tab === "home" ? " home" : "")}>
         <div>
-          <h1 className="top-t">{tab === "focus" ? `${greet(h)} Isma` : TITLES[tab]}</h1>
-          <div className="top-d">{L.cap(L.fmtDay(todayK))}</div>
+          {tab === "home" ? <div className="brand"><span className="brand-dot" />Isma Daily</div> : <h1 className="top-t">{TITLES[tab]}</h1>}
+          {tab !== "home" && <div className="top-d">{L.cap(L.fmtDay(todayK))}</div>}
         </div>
         <div className="top-r">
           {streak > 0 && <span className="streak" title="Jours d'affilée à 90 % de ton objectif calories">🔥 {streak}</span>}
@@ -95,8 +95,8 @@ function App() {
         </div>
       </header>
 
-      <main key={tab} className="main">
-        {tab === "focus" && <Focus ctx={ctx} />}
+      <main key={tab + (sub || "")} className="main">
+        {tab === "home" && <Home ctx={ctx} />}
         {tab === "food" && <Food ctx={ctx} k={viewK} setK={(k) => setFoodK(k >= todayK ? null : k)} />}
         {tab === "sport" && <Sport ctx={ctx} />}
         {tab === "progress" && <Progress ctx={ctx} />}
@@ -104,7 +104,7 @@ function App() {
 
       <nav className="nav" aria-label="Navigation">
         <div className="nav-in">
-          <NavBtn id="focus" icon="target" label="Focus" tab={tab} go={ctx.go} />
+          <NavBtn id="home" icon="home" label="Accueil" tab={tab} go={ctx.go} />
           <NavBtn id="food" icon="bowl" label="Manger" tab={tab} go={ctx.go} />
           <button className="fab" onClick={() => setSheet({ type: "add", k: tab === "food" ? viewK : todayK })} aria-label="Ajouter un repas"><Icon n="plus" size={28} sw={2.4} /></button>
           <NavBtn id="sport" icon="dumbbell" label="Sport" tab={tab} go={ctx.go} />

@@ -93,7 +93,7 @@ function EntryRow({ e, k, ctx }) {
               onRemove={(i) => upd((x) => ({ ...x, items: x.items.filter((_, j) => j !== i) }))} />
             <div className="chips">
               <button className="chip" onClick={() => ctx.open({ type: "add", k, entryId: e.id })}>＋ Aliment</button>
-              <button className="chip" onClick={() => { const undo = L.snapDay(ctx.todayK); L.addEntry(ctx.todayK, e.items, e.label); buzz(10); ctx.say("Refait aujourd'hui", { undo }); }}>↻ Refaire aujourd'hui</button>
+              {k !== ctx.todayK && <button className="chip" onClick={() => { const undo = L.snapDay(ctx.todayK); L.addEntry(ctx.todayK, e.items, e.label); buzz(10); ctx.say("Refait aujourd'hui", { undo }); }}>↻ Refaire aujourd'hui</button>}
               <button className="chip" onClick={fav}>⭐ En favori</button>
               <button className="chip danger" onClick={() => A.deleteEntry(ctx, k, e)}>Supprimer</button>
             </div>
@@ -121,7 +121,7 @@ export function ItemsEditor({ items, onGrams, onRemove, tags }) {
             <div className="item-main">
               <div className="item-name">{it.name}{tags && <SrcTag it={it} />}</div>
               {it.unsure && <div className="warn-txt">« {it.unsure} » : vérifie que c'est bien ça</div>}
-              <div className="item-sub">{missing ? "Quantité ?" : `${fint(tt.k)} kcal · ${fdec(tt.p)} g de protéines`}</div>
+              <div className="item-sub">{missing ? "Quantité ?" : `${fint(tt.k)} kcal · ${fdec(tt.p)} g prot`}</div>
             </div>
             <GramInput value={it.g} onChange={(g) => onGrams(i, g)} />
             {onRemove && <button className="x-btn" onClick={() => onRemove(i)} aria-label={`Retirer ${it.name}`}><Icon n="close" size={14} sw={2.4} /></button>}

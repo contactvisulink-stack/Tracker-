@@ -59,6 +59,8 @@ with sync_playwright() as p:
         page = ctx.new_page()
         page.on("pageerror", lambda e, n=name: errors.append(f"[{n}] pageerror: {e}"))
         page.on("console", lambda m, n=name: errors.append(f"[{n}] {m.type}: {m.text}") if m.type == "error" and "ERR_TUNNEL" not in m.text and "ERR_FILE_NOT_FOUND" not in m.text else None)
+        page.route("https://api.open-meteo.com/**", lambda route: route.fulfill(status=200, headers={"access-control-allow-origin": "*", "content-type": "application/json"},
+            body=json.dumps({"current": {"temperature_2m": 21.4, "weather_code": 1, "is_day": 1 if 6 <= when.hour < 19 else 0}, "daily": {"temperature_2m_max": [24.8], "temperature_2m_min": [12.1]}})))
         page.clock.install(time=when)
         page.goto(URL)
         page.wait_for_timeout(1600)
