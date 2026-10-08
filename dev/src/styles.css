@@ -40,6 +40,8 @@ h1, h2, h3 { font-weight: inherit; font-size: inherit; }
 
 /* ── Fond : formes éclairées par le bord ── */
 .app { position: relative; min-height: 100dvh; padding-top: var(--safe-t); padding-bottom: calc(108px + var(--safe-b)); }
+/* bande floutée sous l'heure et la batterie, pour que le contenu ne passe pas dessous en clair */
+.app::before { content: ""; position: fixed; left: 0; right: 0; top: 0; height: var(--safe-t); z-index: 150; background: rgba(3, 5, 13, .72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); pointer-events: none; }
 .amb-dawn { --rim: rgba(255, 150, 70, .8); --rim-2: rgba(255, 110, 90, .35); }
 .amb-day { --rim: rgba(255, 120, 50, .7); --rim-2: rgba(90, 150, 255, .55); }
 .amb-dusk { --rim: rgba(255, 90, 40, .82); --rim-2: rgba(110, 100, 255, .5); }
@@ -349,6 +351,10 @@ h1, h2, h3 { font-weight: inherit; font-size: inherit; }
 textarea.inp { resize: none; line-height: 1.5; }
 .inp:focus { border-color: rgba(110, 150, 255, .6); box-shadow: 0 0 0 4px rgba(79, 141, 255, .12); }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid2 > *, .cta-row > *, .inp { min-width: 0; }
+/* l'heure sur iPhone gardait une largeur fixe et débordait de la carte */
+input[type=time].inp { -webkit-appearance: none; appearance: none; min-height: 48px; display: block; }
+input[type=time]::-webkit-date-and-time-value { text-align: left; }
 .err { color: #FFB0B0; background: rgba(255, 107, 107, .1); border: 1px solid rgba(255, 107, 107, .28); border-radius: 14px; padding: 11px 13px; font-size: 13.5px; margin: 10px 0; }
 .note { background: rgba(255, 255, 255, .06); border: 1px solid var(--line); border-radius: 14px; padding: 11px 13px; font-size: 13.5px; margin-bottom: 10px; }
 .loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 20px; color: var(--mu); }
