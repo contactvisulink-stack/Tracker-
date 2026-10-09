@@ -534,3 +534,7 @@ input[type=time]::-webkit-date-and-time-value { text-align: left; }
 .pe-main { flex: 1; min-width: 0; display: flex; flex-direction: column; text-align: left; }
 .pe-btn { width: 32px; height: 32px; border-radius: 10px; background: rgba(255, 255, 255, .06); border: 1px solid var(--line); flex-shrink: 0; font-size: 15px; }
 .pe-btn:disabled { opacity: .3; }
+
+/* ── Bandeau de mise à jour ── */
+.update-bar { position: fixed; left: 50%; top: calc(10px + var(--safe-t)); transform: translateX(-50%); z-index: 320; display: flex; align-items: center; gap: 12px; width: max-content; max-width: calc(100% - 24px); padding: 8px 8px 8px 16px; border-radius: 18px; background: rgba(30, 36, 70, .9); border: 1px solid rgba(140, 170, 255, .5); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 10px 34px rgba(0, 0, 0, .5), 0 0 30px rgba(79, 141, 255, .3); font-size: 14px; font-weight: 500; animation: toastIn .3s ease; }
+.update-bar button { padding: 8px 14px; border-radius: 12px; background: linear-gradient(135deg, #5E9BFF, #7A5CFF); color: #fff; font-weight: 600; white-space: nowrap; }

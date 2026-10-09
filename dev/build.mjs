@@ -27,6 +27,7 @@ const html = `<!DOCTYPE html>
 <meta name="apple-mobile-web-app-title" content="Isma Daily"/>
 <meta name="theme-color" content="#080812"/>
 <title>Isma Daily</title>
+<meta name="build" content="${new Date().toISOString()}"/>
 <link rel="apple-touch-icon" href="apple-touch-icon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>

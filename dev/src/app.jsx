@@ -8,6 +8,34 @@ import { Sport, HevyImport, ProgramEdit } from "./sport.jsx";
 import { Progress } from "./progress.jsx";
 import { SleepEdit, Coach, Settings } from "./sheets.jsx";
 
+// ── Mise à jour automatique : l'app vérifie s'il existe une version plus récente en ligne
+const BUILD = (typeof document !== "undefined" && document.querySelector('meta[name="build"]')?.content) || "";
+function useUpdateCheck() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!/^https?:/.test(location.protocol)) return;
+    let last = 0;
+    const check = async () => {
+      if (document.visibilityState !== "visible" || Date.now() - last < 4 * 60e3) return;
+      last = Date.now();
+      try {
+        const r = await fetch(location.pathname + "?v=" + Date.now(), { cache: "no-store" });
+        const m = (await r.text()).match(/<meta name="build" content="([^"]+)"/);
+        if (m && BUILD && m[1] !== BUILD) setReady(true);
+      } catch {}
+    };
+    check();
+    document.addEventListener("visibilitychange", check);
+    return () => document.removeEventListener("visibilitychange", check);
+  }, []);
+  return ready;
+}
+async function installUpdate() {
+  try { await fetch(location.href, { cache: "reload" }); } catch {}
+  try { await fetch(location.pathname, { cache: "reload" }); } catch {}
+  location.reload();
+}
+
 const ambient = (h) => (h >= 5 && h < 10 ? "dawn" : h >= 10 && h < 17 ? "day" : h >= 17 && h < 22 ? "dusk" : "night");
 const TITLES = { home: "Isma Daily", food: "Manger", sport: "Sport", progress: "Progrès" };
 
@@ -76,6 +104,7 @@ function App() {
     celebrate(all ? "all" : fresh.includes("kcal") ? "kcal" : fresh[0]);
   });
 
+  const update = useUpdateCheck();
   const viewK = foodK && foodK < todayK ? foodK : todayK;
   const h = nowD.getHours();
   const streak = L.kcalStreak(todayK, S);
@@ -112,6 +141,12 @@ function App() {
         </div>
       </nav>
 
+      {update && !sheet && (
+        <div className="update-bar" role="status">
+          <span>Nouvelle version disponible</span>
+          <button onClick={installUpdate}>Mettre à jour</button>
+        </div>
+      )}
       {sheet && <SheetRouter sheet={sheet} ctx={ctx} />}
 
       {cel && <div key={cel.id} className={"cel" + (cel.big ? " big" : "")} role="status"><span className="cel-ic">{cel.ic}</span><span>{cel.t}</span></div>}
