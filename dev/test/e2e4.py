@@ -22,6 +22,9 @@ def api(route, request):
         text = json.dumps({"items": [{"name": "Pâtes", "user_words": "", "grams": 180, "food_id": "pates_cuites", "kcal_100g": 158, "protein_100g": 5.8, "carbs_100g": 31, "fat_100g": 0.9, "confidence": "moyenne"}], "note": "Assiette standard."})
     elif "convertis" in sysp:
         text = json.dumps({"items": [{"name": "Kebab", "user_words": "kebab", "grams": 350, "food_id": "", "kcal_100g": 215, "protein_100g": 11, "carbs_100g": 22, "fat_100g": 9, "confidence": "moyenne"}], "note": ""})
+    elif "TON RÔLE" in sysp:
+        text = json.dumps({"reply": "Il te reste **750 kcal** :\n- un shaker avoine-cacahuète\n- ou le bol yaourt", "update_plan": False,
+                           "plan": {"summary": "", "bedtime": "", "training": "unchanged", "meals": []}})
     else:
         text = "Il te reste **750 kcal** :\n- un shaker avoine-cacahuète\n- ou le bol yaourt"
     route.fulfill(status=200, headers={"access-control-allow-origin": "*", "content-type": "application/json"},
@@ -150,8 +153,8 @@ with sync_playwright() as p:
     ok("semaine en protéines", "Protéines" in page.locator(".week .pill").inner_text())
 
     # 12) Coach (API simulée)
-    page.get_by_label("Coach").click(); page.wait_for_timeout(300)
-    page.locator(".sugg").first.click(); page.wait_for_timeout(800)
+    page.get_by_label("Coach", exact=True).click(); page.wait_for_timeout(300)
+    page.locator(".sheet .agent-chips .chip").last.click(); page.wait_for_timeout(800)
     ok("réponse du coach affichée", "750 kcal" in page.locator(".msg.assistant").last.inner_text())
     page.screenshot(path=f"{OUT}/e7-coach.png")
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(200)

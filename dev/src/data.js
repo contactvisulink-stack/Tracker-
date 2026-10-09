@@ -129,9 +129,9 @@ export const PROGRAM = [
       { key: "closedb", name: "Développé Serré Haltère", a: ["developpe serre haltere", "developpe serre", "close grip dumbbell press"], sets: 2, min: 8, max: 12, inc: 2.5, start: 12.5, rest: "90 s",
         cues: ["Haltères collés l'un à l'autre", "Coudes près du corps"] },
       { key: "legext", name: "Extension Jambes", a: ["extension jambes", "extension des jambes", "leg extension"], sets: 2, min: 12, max: 15, inc: 2.5, start: 0, rest: "superset",
-        cues: ["En superset avec le curl marteau", "Pause 1 s jambes tendues"] },
-      { key: "hammer", name: "Curl Marteau", a: ["curl marteau", "curl marteau haltere", "hammer curl"], sets: 2, min: 10, max: 12, inc: 2.5, start: 0, rest: "60-90 s",
-        cues: ["Pouces vers le haut tout le mouvement", "Coudes fixes"] },
+        cues: ["En superset avec le curl pupitre", "Pause 1 s jambes tendues"] },
+      { key: "preacher", name: "Curl Pupitre", a: ["curl pupitre", "curl au pupitre", "curl pupitre barre", "curl pupitre barre ez", "curl pupitre haltere", "curl pupitre machine", "preacher curl", "preacher curl barbell", "preacher curl dumbbell", "preacher curl machine", "preacher curl ez bar", "curl larry scott"], sets: 2, min: 10, max: 12, inc: 2.5, start: 0, rest: "60-90 s",
+        cues: ["Aisselles calées en haut du pupitre", "Descends jusqu'à presque tendre le bras, sans verrouiller", "Monte sans décoller les coudes, serre 1 s en haut"] },
     ],
   },
 ];

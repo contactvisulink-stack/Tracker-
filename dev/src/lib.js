@@ -370,8 +370,36 @@ export function weeklyRate(list, endK, days = 35) {
 // ═════════════════════════════════════════════════════════════
 // Entraînement
 // ═════════════════════════════════════════════════════════════
-export const ALL_EX = PROGRAM.flatMap((d) => d.exs.map((e) => ({ ...e, day: d.day })));
-export const getWorkouts = () => store.get("workouts", []).slice().sort((a, b) => b.date.localeCompare(a.date));
+// Programme : celui de data.js par défaut, ou ta version modifiée (clé « program »)
+let progCache = { raw: undefined, val: PROGRAM };
+export function getProgram() {
+  const raw = readRaw(PFX + "program");
+  if (raw !== progCache.raw) {
+    let val = PROGRAM;
+    try { const p = raw ? JSON.parse(raw) : null; if (Array.isArray(p) && p.length && p.every((d) => d && d.day && Array.isArray(d.exs))) val = p; } catch {}
+    progCache = { raw, val };
+  }
+  return progCache.val;
+}
+export const setProgram = (p) => store.set("program", p);
+export const resetProgram = () => store.del("program");
+export const isCustomProgram = () => getProgram() !== PROGRAM;
+export const allEx = () => getProgram().flatMap((d) => d.exs.map((e) => ({ ...e, day: d.day })));
+
+// Les séances enregistrées ne sont jamais modifiées : on retrouve leurs exercices
+// dans le programme actuel au moment de les lire.
+let wkCache = { raw: undefined, prog: undefined, val: [] };
+export function getWorkouts() {
+  const raw = readRaw(PFX + "workouts"), prog = getProgram();
+  if (raw !== wkCache.raw || prog !== wkCache.prog) {
+    let list = [];
+    try { list = raw ? JSON.parse(raw) || [] : []; } catch {}
+    const val = list.map((w) => ({ ...w, exercises: (w.exercises || []).map((e) => { const m = matchExercise(e.name, w.session); return { ...e, key: m ? m.key : null }; }) }))
+      .sort((a, b) => b.date.localeCompare(a.date));
+    wkCache = { raw, prog, val };
+  }
+  return wkCache.val;
+}
 export const setWorkouts = (list) => store.set("workouts", list.slice().sort((a, b) => b.date.localeCompare(a.date)));
 const STOP = new Set(["a", "de", "le", "la", "les", "du", "des", "vers", "en", "au", "aux", "avec", "sur", "the", "with", "on", "machine", "et"]);
 const toks = (s) => new Set(norm(s).replace(/[^a-z0-9 ]/g, " ").split(" ").filter((w) => w && !STOP.has(w)));
@@ -380,8 +408,8 @@ const jacc = (A, B) => { let i = 0; A.forEach((x) => { if (B.has(x)) i++; }); re
 export function matchExercise(name, preferDay) {
   const T = toks(name), nn = norm(name);
   let best = null, bs = 0;
-  for (const e of ALL_EX) {
-    for (const cand of [e.name, ...e.a]) {
+  for (const e of allEx()) {
+    for (const cand of [e.name, ...(e.a || [])]) {
       let sc = norm(cand) === nn ? 1.01 : jacc(T, toks(cand));
       if (preferDay && e.day === preferDay) sc += 0.04;
       if (sc > bs) { bs = sc; best = e; }
@@ -742,8 +770,7 @@ export function pace(k, now, S) {
   const d = getDay(k), t = dayTot(d);
   const b = keyToDate(k);
   const wake = d.sleep?.wake ? new Date(d.sleep.wake) : new Date(b.getFullYear(), b.getMonth(), b.getDate(), 9, 0);
-  const st = sleepStats(addDays(k, -1), 7);
-  const endMin = clamp(st.avgBed != null ? st.avgBed - 60 : 390, 300, 480); // entre 23 h et 2 h
+  const endMin = clamp(bedTarget(k).min - 60, 240, 600); // fin des repas : 1 h avant le coucher visé
   const end = new Date(b.getFullYear(), b.getMonth(), b.getDate(), 18, 0);
   end.setMinutes(end.getMinutes() + endMin);
   const frac = clamp((now - wake) / (end - wake), 0, 1);
@@ -798,8 +825,15 @@ export function trainingStatus(k) {
   const wk = weekWorkouts(k, ws).length;
   const daysLeft = 7 - ((keyToDate(k).getDay() + 6) % 7);
   const need = Math.max(0, 3 - wk);
-  const due = !todayW && need > 0 && (daysSince >= 2 || need * 2 - 1 > daysLeft);
-  return { todayW, due, rest: !todayW && !due, next: nextSession(ws), wk, daysSince, need };
+  let due = !todayW && need > 0 && (daysSince >= 2 || need * 2 - 1 > daysLeft);
+  const plan = getPlan(k), prev = getPlan(addDays(k, -1));
+  const moved = plan?.training && plan.training !== "unchanged" ? plan.training : null;
+  if (!todayW) {
+    if (moved === "rest" || moved === "tomorrow") due = false;
+    else if (moved === "today") due = need > 0;
+    else if (prev?.training === "tomorrow" && daysSince >= 1 && need > 0) due = true;
+  }
+  return { todayW, due, rest: !todayW && !due, next: nextSession(ws), wk, daysSince, need, moved };
 }
 
 /** La prochaine chose à faire, par ordre d'importance */
@@ -816,11 +850,12 @@ export function focusActions(k, now, S) {
     else add({ id: "sleeping", prio: 100, ic: "🌙", tone: "moon", title: "Bonne nuit", text: "Téléphone posé. Le reste attendra demain." });
     return acts;
   }
-  const late = hr >= 23 || hr < 4.5;
+  const late = isLate(k, now);
+  const bt = bedTarget(k);
   if (late) {
-    const st = sleepStats(addDays(k, 0), 7);
-    const goal = st.avgBed != null ? Math.round(Math.max(300, st.avgBed - 20) / 10) * 10 : null;
-    add({ id: "bed", prio: 92, ic: "🌙", tone: "moon", title: "Pose le téléphone", text: goal != null ? `Ces 7 derniers soirs, tu t'es couché vers ${hFr(st.avgBed)}. Vise ${hFr(goal)} ce soir.` : "Un appui au moment où tu le poses, un autre au réveil." });
+    const st = sleepStats(k, 7);
+    add({ id: "bed", prio: 92, ic: "🌙", tone: "moon", title: "Pose le téléphone",
+      text: bt.plan ? `Ce soir, tu avais prévu de te coucher vers ${hFr(bt.min)}.` : st.avgBed != null ? `Ces 7 derniers soirs, tu t'es couché vers ${hFr(st.avgBed)}. Vise ${hFr(bt.min)} ce soir.` : "Un appui au moment où tu le poses, un autre au réveil." });
   }
   const hasW = getWeights()[k] != null;
   if (keyToDate(k).getDay() === S.weighDay && !hasW && hr >= 5 && hr < 13)
@@ -833,7 +868,12 @@ export function focusActions(k, now, S) {
 
   const p = pace(k, now, S);
   const behind = -p.diff;
-  if (t.k < S.kcal - 250 && hr >= 7 && !late) {
+  const pm = plannedMeals(k);
+  if (pm.length && !late) {
+    const nm = nowDayMin(now);
+    const next = pm.find((m) => !m.done && nm >= m.at - 30 && nm <= m.at + 90);
+    if (next) add({ id: "eat", prio: 86, ic: "🍽️", tone: "sun", title: `${next.label}, prévu à ${next.time.replace(":", " h ")}`, text: next.idea ? `${next.idea} · ~${fint(next.kcal)} kcal` : `Vise ~${fint(next.kcal)} kcal.`, target: next.kcal, planned: true });
+  } else if (t.k < S.kcal - 250 && hr >= 7 && !late) {
     const noFood = !d.entries.length;
     const since = p.sinceLast == null ? 999 : p.sinceLast;
     if ((noFood && hr >= 10) || since >= 210 || (behind > 250 && since >= 120))
@@ -925,13 +965,17 @@ export function weekAverages(k, S) {
 /** Ce qui arrive bientôt : coucher visé, prochaine séance, pesée */
 export function upcoming(k, S, now) {
   const out = [];
-  const st = sleepStats(k, 7);
-  if (st.avgBed != null) out.push({ k, title: "Poser le téléphone", sub: `Vise ${hFr(Math.round(Math.max(300, st.avgBed - 20) / 10) * 10)} ce soir`, dot: "var(--moon)" });
+  const bt = bedTarget(k);
+  out.push({ k, title: "Poser le téléphone", sub: `${bt.plan ? "Prévu" : "Vise"} ${hFr(bt.min)} ce soir`, dot: "var(--moon)" });
   const tr = trainingStatus(k);
-  if (!tr.todayW) out.push({ k: tr.due ? k : addDays(k, 1), title: `Séance ${tr.next}`, sub: tr.due ? "Aujourd'hui, tes charges sont prêtes" : "Demain, après une journée de repos", dot: "var(--sun)" });
-  else out.push({ k: addDays(k, tr.wk >= 3 ? (8 - ((keyToDate(k).getDay() + 6) % 7)) : 2), title: `Séance ${tr.next}`, sub: tr.wk >= 3 ? "La semaine prochaine" : "Après-demain", dot: "var(--sun)" });
-  const wd = keyToDate(k).getDay();
-  let delta = (S.weighDay - wd + 7) % 7;
+  const wd = (keyToDate(k).getDay() + 6) % 7;
+  if (!tr.todayW) {
+    if (tr.due) out.push({ k, title: `Séance ${tr.next}`, sub: tr.moved === "today" ? "Aujourd'hui, calée par ton coach" : "Aujourd'hui, tes charges sont prêtes", dot: "var(--sun)" });
+    else if (tr.wk >= 3) out.push({ k: addDays(k, 7 - wd), title: `Séance ${tr.next}`, sub: "La semaine prochaine, la semaine est bouclée", dot: "var(--sun)" });
+    else out.push({ k: addDays(k, 1), title: `Séance ${tr.next}`, sub: tr.moved === "tomorrow" ? "Demain, décalée par ton coach" : tr.moved === "rest" ? "Demain, après une journée de récup" : "Demain, après une journée de repos", dot: "var(--sun)" });
+  } else out.push({ k: addDays(k, tr.wk >= 3 ? 7 - wd : 2), title: `Séance ${tr.next}`, sub: tr.wk >= 3 ? "La semaine prochaine" : "Après-demain", dot: "var(--sun)" });
+  const wday = keyToDate(k).getDay();
+  let delta = (S.weighDay - wday + 7) % 7;
   if (delta === 0 && getWeights()[k] != null) delta = 7;
   out.push({ k: addDays(k, delta), title: "Pesée", sub: delta === 0 ? "Ce matin, à jeun" : `${cap(fmtDay(addDays(k, delta), { weekday: "long" }))} matin, à jeun`, dot: "var(--sky)" });
   return out.sort((a, b) => a.k.localeCompare(b.k));
@@ -957,4 +1001,165 @@ export function getWeather() {
       .finally(() => { wxLoading = false; });
   }
   return c;
+}
+
+
+// ═════════════════════════════════════════════════════════════
+// v5 — Séances qui changent : comparer la dernière séance au programme
+// ═════════════════════════════════════════════════════════════
+const slug = (s) => norm(s).replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 24);
+export function sessionDiff(day) {
+  const ws = getWorkouts();
+  const w = ws.find((x) => x.session === day);
+  if (!w) return null;
+  const prog = getProgram().find((p) => p.day === day);
+  if (!prog) return null;
+  const keys = new Set(prog.exs.map((e) => e.key));
+  const newEx = w.exercises.filter((e) => (!e.key || !keys.has(e.key)) && e.sets.some((s) => !s.warm && s.r > 0));
+  if (!newEx.length) return null;
+  const missing = prog.exs.filter((pe) => !w.exercises.some((e) => e.key === pe.key));
+  if ((store.get("diffSeen", {}) || {})[w.id + ":" + day]) return null;
+  return { w, day, newEx, missing };
+}
+export const dismissDiff = (wId, day) => store.set("diffSeen", { ...(store.get("diffSeen", {}) || {}), [wId + ":" + day]: true });
+
+/** Crée l'exercice du programme à partir de ce que tu as fait dans Hevy */
+export function exerciseFromDone(e) {
+  const other = e.key ? allEx().find((x) => x.key === e.key) : null;
+  if (other) { const { day, ...rest } = other; return rest; }
+  const work = e.sets.filter((s) => !s.warm && s.r > 0);
+  const avg = work.reduce((a, s) => a + s.r, 0) / (work.length || 1);
+  const [min, max] = avg >= 12.5 ? [12, 15] : avg >= 9 ? [8, 12] : [6, 10];
+  const W = Math.max(0, ...work.map((s) => s.w));
+  return { key: "x_" + slug(e.name) + "_" + uid().slice(-4), name: e.name, a: [norm(e.name)], sets: Math.max(1, Math.min(5, work.length || 3)), min, max, inc: 2.5, start: W, rest: max >= 12 ? "60-90 s" : "2 min", cues: [] };
+}
+
+/** choices : [{ ex, replaceKey }] ; removeKeys : exercices à retirer */
+export function applySessionUpdate(day, choices, removeKeys = []) {
+  const prog = getProgram().map((d) => ({ ...d, exs: d.exs.map((x) => ({ ...x })) }));
+  const d = prog.find((x) => x.day === day);
+  for (const c of choices) {
+    const nx = exerciseFromDone(c.ex);
+    const i = c.replaceKey ? d.exs.findIndex((x) => x.key === c.replaceKey) : -1;
+    if (i >= 0) d.exs.splice(i, 1, nx); else d.exs.push(nx);
+  }
+  const rm = new Set(removeKeys.filter((k) => !choices.some((c) => c.replaceKey === k)));
+  d.exs = d.exs.filter((x) => !rm.has(x.key));
+  setProgram(prog);
+}
+
+// ═════════════════════════════════════════════════════════════
+// v5 — Plan du jour ajusté par le coach (clé « plan:AAAA-MM-JJ »)
+// ═════════════════════════════════════════════════════════════
+export const getPlan = (k) => { const p = store.get("plan:" + k, null); return p && typeof p === "object" ? p : null; };
+export const setPlan = (k, p) => (p ? store.set("plan:" + k, p) : store.del("plan:" + k));
+const HM = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+export const validHM = (t) => HM.test(String(t || "").trim());
+export const hmToNight = (t) => { const [h, m] = String(t).split(":").map(Number); return (h * 60 + m - 1080 + 1440) % 1440; };
+// minutes depuis 5 h du matin, pour trier une journée qui finit après minuit
+export const dayMin = (t) => { const [h, m] = String(t).split(":").map(Number); return ((h < 5 ? h + 24 : h) * 60 + m) - 300; };
+export const nowDayMin = (now) => dayMin(`${now.getHours()}:${now.getMinutes()}`);
+
+/** Heure de coucher visée : celle du coach si elle existe, sinon tes habitudes */
+export function bedTarget(k) {
+  const p = getPlan(k);
+  if (p?.bedtime && validHM(p.bedtime)) return { min: hmToNight(p.bedtime), plan: true };
+  const st = sleepStats(k, 7);
+  return { min: st.avgBed != null ? Math.round(Math.max(300, st.avgBed - 20) / 10) * 10 : 360, plan: false };
+}
+export function isLate(k, now) {
+  const nm = nightMin(now), t = bedTarget(k).min;
+  return nm >= t - 30 && nm < 720;
+}
+/** Repas prévus par le coach, avec « fait » si un repas a été noté autour de l'heure */
+export function plannedMeals(k) {
+  const p = getPlan(k);
+  if (!p?.meals?.length) return [];
+  const d = getDay(k);
+  return p.meals.filter((m) => validHM(m.time)).map((m) => ({ ...m, at: dayMin(m.time), done: d.entries.some((e) => Math.abs(dayMin(e.t) - dayMin(m.time)) <= 75) }))
+    .sort((a, b) => a.at - b.at);
+}
+
+const AGENT_SCHEMA = {
+  type: "object",
+  properties: {
+    reply: { type: "string" },
+    update_plan: { type: "boolean" },
+    plan: {
+      type: "object",
+      properties: {
+        summary: { type: "string" },
+        bedtime: { type: "string" },
+        training: { type: "string", enum: ["unchanged", "today", "tomorrow", "rest"] },
+        meals: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { time: { type: "string" }, label: { type: "string" }, kcal: { type: "number" }, idea: { type: "string" } },
+            required: ["time", "label", "kcal", "idea"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["summary", "bedtime", "training", "meals"],
+      additionalProperties: false,
+    },
+  },
+  required: ["reply", "update_plan", "plan"],
+  additionalProperties: false,
+};
+
+/** Coach-agent : répond et, si ta journée change, renvoie un nouveau plan */
+export async function aiAgent(history, todayK) {
+  const S = getSettings();
+  const now = new Date();
+  const t = dayTot(getDay(todayK));
+  const bt = bedTarget(todayK);
+  const plan = getPlan(todayK);
+  const tr = trainingStatus(todayK);
+  const system = `Tu es le coach d'Isma (Ismaël), 20 ans, 1m76, très mince, en prise de masse (objectif ${S.goalW} kg). Il vit à Perth depuis fin septembre 2026, bosse en restauration (services du soir possibles), s'entraîne en Full Body 3 fois par semaine (séances A, B, C, notées sur Hevy).
+Objectifs par jour : ${fint(S.kcal)} kcal et ${S.prot} g de protéines. Il se couche tard (souvent 1 h 30 - 3 h) et essaie d'avancer petit à petit son coucher, avec la lumière du jour le matin.
+
+TON RÔLE : il te dit ce qui change dans sa journée (sortie, service au travail, réveil tardif, pas faim, pas de salle, invitation…) ou te pose une question. Quand sa journée change, tu réorganises LA FIN DE SA JOURNÉE et tu renvoies update_plan = true avec :
+- bedtime : heure réaliste où il posera le téléphone, format HH:MM sur 24 h (ex. "02:30"). Une sortie, ça peut être tard : sois réaliste, pas moralisateur.
+- meals : les repas qu'il lui reste, à partir de maintenant (${hm(now)}), dans l'ordre, au format HH:MM, au moins 30 min avant le coucher. La somme des kcal doit faire à peu près ce qu'il lui reste (${fint(Math.max(0, S.kcal - t.k))} kcal), et les protéines restantes (${fint(Math.max(0, S.prot - t.p))} g) bien réparties. Avant une sortie : un vrai repas avant de partir. S'il boit : manger avant, de l'eau entre les verres, un shaker ou un en-cas en rentrant. idea = une idée concrète et courte (ses favoris, ce qu'il a chez lui : poulet, riz, pâtes, œufs, avoine, whey, lait, yaourt grec, beurre de cacahuète, bananes), ou un plat à commander.
+- training : "today" si la séance doit se faire aujourd'hui, "tomorrow" s'il ne peut pas aujourd'hui, "rest" si c'est mieux de récupérer, sinon "unchanged".
+- summary : une ligne qui résume le plan (ex. "Sortie ce soir : dîner à 19 h 30, coucher vers 3 h, séance demain").
+S'il pose juste une question sans changement de journée : update_plan = false, et plan rempli à vide (summary "", bedtime "", training "unchanged", meals []).
+reply : 3 à 6 lignes en français familier, tutoiement, direct, sans titres ni tableaux. Explique le nouveau plan simplement. Si quelque chose ressemble à un souci de santé, conseille-lui d'en parler à un médecin.
+
+DONNÉES DE SON APP (à jour) :
+${buildContext(todayK)}
+Heure actuelle : ${hm(now)}. Coucher visé actuellement : ${hFr(bt.min)}${bt.plan ? " (plan déjà ajusté)" : " (d'après ses habitudes)"}.
+Séance : ${tr.todayW ? "déjà faite aujourd'hui" : tr.due ? `séance ${tr.next} prévue aujourd'hui` : `repos aujourd'hui, prochaine séance ${tr.next}`} (${tr.wk}/3 séances cette semaine${tr.wk >= 3 ? ", semaine bouclée : ne décale rien" : ""}).
+${plan ? `Plan déjà ajusté aujourd'hui : ${JSON.stringify({ summary: plan.summary, bedtime: plan.bedtime, training: plan.training, meals: plan.meals })}` : "Pas de plan ajusté aujourd'hui."}`;
+  return callClaude({ system, messages: history, schema: AGENT_SCHEMA, think: false, effort: "medium", maxTokens: 3000 });
+}
+
+/** Enregistre le plan renvoyé par le coach ; renvoie de quoi annuler */
+export function applyAgentPlan(k, res, ask) {
+  if (!res?.update_plan || !res.plan) return null;
+  const p = res.plan;
+  const undo = snapKey("plan:" + k);
+  const meals = (p.meals || []).filter((m) => validHM(m.time) && m.label).map((m) => ({ time: m.time.trim().padStart(5, "0"), label: m.label, kcal: Math.max(0, Math.round(+m.kcal || 0)), idea: m.idea || "" }));
+  setPlan(k, { summary: p.summary || "", bedtime: validHM(p.bedtime) ? p.bedtime.trim().padStart(5, "0") : "", training: ["today", "tomorrow", "rest"].includes(p.training) ? p.training : "unchanged", meals, ask: ask || "", at: Date.now() });
+  return undo;
+}
+
+// ═════════════════════════════════════════════════════════════
+// v5 — Sauvegarde dans un fichier (Fichiers / iCloud)
+// ═════════════════════════════════════════════════════════════
+export async function saveBackupFile() {
+  const data = exportData();
+  const name = `isma-daily-${dkey(new Date())}.json`;
+  const blob = new Blob([data], { type: "application/json" });
+  try {
+    const file = new File([blob], name, { type: "application/json" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "Sauvegarde Isma Daily" }); store.set("lastBackup", Date.now()); return "shared"; }
+  } catch (e) { if (e && e.name === "AbortError") return "cancel"; }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  store.set("lastBackup", Date.now());
+  return "downloaded";
 }

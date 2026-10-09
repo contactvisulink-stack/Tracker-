@@ -203,14 +203,14 @@ export function Empty({ title, text, children }) {
 }
 
 /** Saisie de grammes */
-export function GramInput({ value, onChange }) {
+export function GramInput({ value, onChange, unit = "g" }) {
   const [s, setS] = useState(value == null ? "" : String(value));
   useEffect(() => { if (L.num(s) !== value) setS(value == null ? "" : String(value)); }, [value]);
   return (
     <label className="gram">
       <input inputMode="decimal" value={s} placeholder="?" aria-label="grammes" onFocus={(e) => e.target.select()}
         onChange={(e) => { setS(e.target.value); onChange(L.num(e.target.value)); }} />
-      <span>g</span>
+      {unit && <span>{unit}</span>}
     </label>
   );
 }

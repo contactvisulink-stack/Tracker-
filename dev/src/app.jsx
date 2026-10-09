@@ -4,7 +4,7 @@ import * as L from "./lib.js";
 import { Icon, Confetti, buzz } from "./ui.jsx";
 import { Home } from "./home.jsx";
 import { Food, AddFood, Foods } from "./food.jsx";
-import { Sport, HevyImport } from "./sport.jsx";
+import { Sport, HevyImport, ProgramEdit } from "./sport.jsx";
 import { Progress } from "./progress.jsx";
 import { SleepEdit, Coach, Settings } from "./sheets.jsx";
 
@@ -142,6 +142,7 @@ function SheetRouter({ sheet, ctx }) {
     case "foods": return <Foods ctx={ctx} />;
     case "sleep": return <SleepEdit ctx={ctx} k={sheet.k} />;
     case "hevy": return <HevyImport ctx={ctx} />;
+    case "program": return <ProgramEdit ctx={ctx} day={sheet.day} />;
     case "coach": return <Coach ctx={ctx} ask={sheet.ask} />;
     case "settings": return <Settings ctx={ctx} />;
     default: return null;

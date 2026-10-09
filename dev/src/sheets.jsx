@@ -68,6 +68,7 @@ function Rich({ text }) {
     return <React.Fragment key={i}>{i > 0 && "\n"}{bullet ? "• " : ""}{parts}</React.Fragment>;
   });
 }
+const AGENT_CHIPS = ["Ce soir je sors", "Je bosse ce soir", "Je me suis levé tard", "J'ai pas faim", "Pas de salle aujourd'hui", "Qu'est-ce que je mange maintenant\u00a0?"];
 export function Coach({ ctx, ask }) {
   const chat = L.store.get("chat", []);
   const [inp, setInp] = useState("");
@@ -75,6 +76,7 @@ export function Coach({ ctx, ask }) {
   const endRef = useRef();
   const hasKey = !!L.getApiKey();
   const sent = useRef(false);
+  const k = ctx.todayK;
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [chat.length, busy]);
   const send = async (txt) => {
     const m = (txt ?? inp).trim();
@@ -82,29 +84,44 @@ export function Coach({ ctx, ask }) {
     const nc = [...chat, { role: "user", content: m }];
     L.store.set("chat", nc.slice(-40));
     setInp(""); setBusy(true);
-    try { const r = await L.aiCoach(cleanHistory(nc), L.buildContext(ctx.todayK)); L.store.set("chat", [...nc, { role: "assistant", content: r || "…" }].slice(-40)); }
-    catch (e) { L.store.set("chat", [...nc, { role: "assistant", content: e.message, err: true }].slice(-40)); }
+    try {
+      const res = await L.aiAgent(cleanHistory(nc), k);
+      const undo = L.applyAgentPlan(k, res, m);
+      const msg = { role: "assistant", content: res.reply || "…" };
+      if (undo) msg.plan = { k, summary: res.plan.summary || "Journée réorganisée" };
+      L.store.set("chat", [...nc, msg].slice(-40));
+      if (undo) ctx.say("Ta journée est réorganisée", { undo });
+    } catch (e) { L.store.set("chat", [...nc, { role: "assistant", content: e.message, err: true }].slice(-40)); }
     setBusy(false);
   };
   useEffect(() => { if (ask && !sent.current && hasKey) { sent.current = true; send(ask); } }, []);
+  const plan = L.getPlan(k);
   return (
-    <Sheet title="Coach" onClose={ctx.close} tall
+    <Sheet title="Ton coach" onClose={ctx.close} tall
       footer={<div className="composer">
-        <textarea className="inp" rows={1} value={inp} onChange={(e) => setInp(e.target.value)} placeholder="Pose ta question"
+        <textarea className="inp" rows={1} value={inp} onChange={(e) => setInp(e.target.value)} placeholder={plan ? "Autre chose qui change ?" : "Ce soir je sors jusqu'à 2 h…"}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !("ontouchstart" in window)) { e.preventDefault(); send(); } }} />
         <button className="send" disabled={!inp.trim() || busy || !hasKey} onClick={() => send()} aria-label="Envoyer"><Icon n="right" size={20} sw={2.4} /></button>
       </div>}>
       {!hasKey && <div className="err">Le coach a besoin de ta clé API, dans Réglages.</div>}
-      {!chat.length && (
-        <div className="coach-empty">
-          <p className="muted">Il voit ce que tu as mangé, ton sommeil, ton poids et tes séances.</p>
-          {SUGG.map((s) => <button key={s} className="sugg" onClick={() => send(s)} disabled={!hasKey}>{s}</button>)}
-        </div>
-      )}
+      {!chat.length && <p className="muted mb10">Dis-lui ce qui change aujourd'hui : il réorganise tes repas, ton heure de coucher et ta séance. Tu peux aussi lui poser n'importe quelle question.</p>}
       <div className="chat">
-        {chat.map((m, i) => <div key={i} className={"msg " + m.role + (m.err ? " err" : "")}>{m.role === "assistant" ? <Rich text={m.content} /> : m.content}</div>)}
+        {chat.map((m, i) => (
+          <React.Fragment key={i}>
+            <div className={"msg " + m.role + (m.err ? " err" : "")}>{m.role === "assistant" ? <Rich text={m.content} /> : m.content}</div>
+            {m.plan && (
+              <div className="plan-chip">
+                <span>📋 {m.plan.summary}</span>
+                {m.plan.k === k && L.getPlan(k) && i === chat.map((x) => !!x.plan).lastIndexOf(true) && <button className="link small" onClick={ctx.close}>Voir sur l'accueil</button>}
+              </div>
+            )}
+          </React.Fragment>
+        ))}
         {busy && <div className="msg assistant typing"><i /><i /><i /></div>}
         <div ref={endRef} />
+      </div>
+      <div className="agent-chips mt10">
+        {AGENT_CHIPS.map((c) => <button key={c} className="chip" disabled={busy || !hasKey} onClick={() => send(c)}>{c}</button>)}
       </div>
       {chat.length > 0 && <div className="center mt10"><button className="link" onClick={() => { const undo = L.snapKey("chat"); L.store.set("chat", []); ctx.say("Conversation effacée", { undo }); }}>Effacer la conversation</button></div>}
     </Sheet>
@@ -137,6 +154,12 @@ export function Settings({ ctx }) {
     const k = key.trim();
     if (!k.startsWith("sk-ant-")) { setMsg("La clé commence par sk-ant-"); return; }
     L.setApiKey(k); setKey(""); setMsg("Clé enregistrée sur ce téléphone.");
+  };
+  const fileRef = useRef();
+  const lastB = L.store.get("lastBackup", null);
+  const saveFile = async () => {
+    try { const r = await L.saveBackupFile(); if (r !== "cancel") setMsg("Sauvegarde créée. Range-la dans Fichiers ou iCloud Drive."); }
+    catch { setMsg("Impossible de créer le fichier. Utilise « Copier le texte »."); }
   };
   const copyBackup = async () => {
     const data = L.exportData();
@@ -187,10 +210,16 @@ export function Settings({ ctx }) {
 
       <div className="sub-h mt18">Sauvegarde</div>
       <p className="hint mb10">Tes données restent sur ce téléphone. Copie une sauvegarde de temps en temps (sans la clé API).</p>
-      <button className="cta ghost full" onClick={copyBackup}>Copier ma sauvegarde</button>
+      <button className="cta sun full" onClick={saveFile}>Enregistrer une sauvegarde (Fichiers, iCloud)</button>
+      <p className="hint mb10">{lastB ? `Dernière sauvegarde : ${L.fmtDay(L.dkey(new Date(lastB)), { day: "numeric", month: "long" })}.` : "Aucune sauvegarde encore."} Pour restaurer, choisis le fichier ou colle le texte.</p>
+      <div className="cta-row mb10">
+        <button className="cta ghost" onClick={copyBackup}>Copier le texte</button>
+        <button className="cta ghost" onClick={() => fileRef.current?.click()}>Ouvrir un fichier</button>
+      </div>
+      <input ref={fileRef} type="file" accept="application/json,.json,text/plain" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; try { setRestore(await f.text()); setMsg("Fichier chargé : touche « Restaurer cette sauvegarde »."); } catch { setMsg("Fichier illisible."); } }} />
       <textarea className="inp mt10" style={{ minHeight: 70 }} value={restore} onChange={(e) => setRestore(e.target.value)} placeholder="Pour restaurer : colle une sauvegarde ici" />
       {restore.trim() && <button className="cta ghost full mt8" onClick={doRestore}>Restaurer cette sauvegarde</button>}
-      <p className="hint center mt18">Isma Daily, version 4 · octobre 2026</p>
+      <p className="hint center mt18">Isma Daily, version 5 · octobre 2026</p>
     </Sheet>
   );
 }

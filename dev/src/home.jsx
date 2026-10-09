@@ -11,6 +11,7 @@ export function Home({ ctx }) {
   return (
     <div className="page dash">
       <GreetCard ctx={ctx} d={d} />
+      <PlanCard ctx={ctx} />
       <CaloriesCard ctx={ctx} d={d} />
       <div className="g2">
         <TimerCard ctx={ctx} />
@@ -45,12 +46,13 @@ function GreetCard({ ctx, d }) {
   const hello = night && nightH >= 3 ? "Bonjour," : h >= 5 && h < 12 ? "Bonjour," : h >= 12 && h < 18 ? "Bon après-midi," : h >= 18 && h < 23 ? "Bonsoir," : "Il est tard,";
   const R = L.rings(d, ctx.S);
   const bull = R.kcal >= 1 && R.prot >= 1 && R.sleep >= 1;
-  const late = !night && (hr >= 22.5 || hr < 4.5);
+  const late = !night && L.isLate(ctx.todayK, now);
+  const bt = L.bedTarget(ctx.todayK);
   const st = L.sleepStats(ctx.todayK, 7);
   const fallback = h >= 5 && h < 12 ? "Nouvelle journée. Un objectif à la fois." : h >= 12 && h < 18 ? "Reste focus et fais-le." : h >= 18 && h < 23 ? "Termine fort ta journée." : "La journée est finie.";
   let line = bull ? "🎯 Dans le mille : calories, protéines et sommeil atteints." : L.insight(ctx.todayK, ctx.S) || fallback;
   if (night) line = nightH >= 3 ? `Téléphone posé à ${L.hm(night.bed)}. Appuie dès que tu es levé.` : `Téléphone posé à ${L.hm(night.bed)}. Bonne nuit.`;
-  else if (late) line = st.avgBed != null ? `Ces 7 derniers soirs : couché vers ${L.hFr(st.avgBed)}. Vise ${L.hFr(Math.round(Math.max(300, st.avgBed - 20) / 10) * 10)}.` : "Un appui quand tu poses le téléphone, un autre au réveil.";
+  else if (late) line = bt.plan ? `Tu avais prévu de te coucher vers ${L.hFr(bt.min)}. C'est le moment.` : st.avgBed != null ? `Ces 7 derniers soirs : couché vers ${L.hFr(st.avgBed)}. Vise ${L.hFr(bt.min)}.` : "Un appui quand tu poses le téléphone, un autre au réveil.";
   return (
     <section className={"card greet" + (night ? " is-night" : "")}>
       <div className="greet-top">
@@ -75,6 +77,64 @@ function GreetCard({ ctx, d }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Le coach : « ce soir je sors » → il réorganise la journée
+// ─────────────────────────────────────────────────────────────
+const CHIPS = ["Ce soir je sors", "Je bosse ce soir", "Je me suis levé tard", "J'ai pas faim", "Pas de salle aujourd'hui"];
+const TRAIN_TXT = { today: "Séance aujourd'hui", tomorrow: "Séance décalée à demain", rest: "Repos aujourd'hui" };
+function PlanCard({ ctx }) {
+  const k = ctx.todayK;
+  const plan = L.getPlan(k);
+  const [txt, setTxt] = useState("");
+  const ask = (m) => { const q = (m ?? txt).trim(); if (!q) return; setTxt(""); ctx.open({ type: "coach", ask: q }); };
+  if (plan) {
+    const meals = L.plannedMeals(k);
+    const nm = L.nowDayMin(new Date(ctx.now));
+    const bt = L.bedTarget(k);
+    const reset = () => { const undo = L.snapKey("plan:" + k); L.setPlan(k, null); ctx.say("Retour au plan normal", { undo }); };
+    return (
+      <Card title="Ta journée, réorganisée" className="plan" right={<button className="pill" onClick={() => ctx.open({ type: "coach" })}><Icon n="chat" size={13} sw={2.2} /> Coach</button>}>
+        {plan.summary && <p className="plan-sum">{plan.summary}</p>}
+        <div className="plan-tags">
+          {plan.bedtime && <span className="ptag moon">🌙 Coucher vers {L.hFr(bt.min)}</span>}
+          {TRAIN_TXT[plan.training] && <span className="ptag">🏋️ {TRAIN_TXT[plan.training]}</span>}
+        </div>
+        {meals.length > 0 && (
+          <div className="plan-meals">
+            {meals.map((m, i) => {
+              const past = !m.done && nm > m.at + 90, now = !m.done && nm >= m.at - 30 && nm <= m.at + 90;
+              return (
+                <div key={i} className={"pm" + (m.done ? " done" : "") + (now ? " now" : "") + (past ? " past" : "")}>
+                  <span className="pm-t">{m.time}</span>
+                  <span className="pm-dot" />
+                  <span className="pm-main"><span className="pm-l">{m.label}</span>{m.idea && <span className="pm-i">{m.idea}</span>}</span>
+                  <span className="pm-k">{m.done ? "✓" : `~${L.fint(m.kcal)}`}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="plan-btns">
+          <button className="pill-btn" onClick={() => ctx.open({ type: "coach" })}>Changer encore</button>
+          <button className="pill-btn ghost" onClick={reset}>Revenir au plan normal</button>
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <Card title="Ta journée change ?" className="agent">
+      <p className="agent-sub">Dis-le à ton coach : il réorganise tes repas, ton coucher et ta séance.</p>
+      <div className="agent-in">
+        <input className="inp" value={txt} onChange={(e) => setTxt(e.target.value)} placeholder="Ce soir je sors jusqu'à 2 h…" onKeyDown={(e) => e.key === "Enter" && ask()} aria-label="Message au coach" />
+        <button className="send" onClick={() => ask()} disabled={!txt.trim()} aria-label="Envoyer"><Icon n="right" size={20} sw={2.4} /></button>
+      </div>
+      <div className="agent-chips">
+        {CHIPS.map((c) => <button key={c} className="chip" onClick={() => ask(c)}>{c}</button>)}
+      </div>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 function CaloriesCard({ ctx, d }) {
   const { S, todayK } = ctx;
   const t = L.dayTot(d);
@@ -82,7 +142,10 @@ function CaloriesCard({ ctx, d }) {
   const msg = pct >= 1 ? "Objectif atteint" : pct >= 0.75 ? "Presque là !" : pct >= 0.5 ? "Bien parti !" : pct >= 0.25 ? "C'est lancé" : "On démarre";
   const night = L.store.get("night", null);
   const p = L.pace(todayK, new Date(ctx.now), S);
-  const fav = !night && p.remaining > 250 ? L.bestFav(L.clamp(p.perMeal, 350, 1100)) : null;
+  const nm = L.nowDayMin(new Date(ctx.now));
+  const planned = L.plannedMeals(todayK).find((m) => !m.done && m.at >= nm - 90);
+  const target = planned ? planned.kcal : L.clamp(p.perMeal, 350, 1100);
+  const fav = !night && p.remaining > 250 && !L.isLate(todayK, new Date(ctx.now)) ? L.bestFav(target) : null;
   return (
     <Card title="Calories" className="cal" right={<button className="pill" onClick={() => ctx.go("food")}>Aujourd'hui <Icon n="chevron" size={13} sw={2.4} /></button>}>
       <div className="cal-body">
@@ -101,7 +164,7 @@ function CaloriesCard({ ctx, d }) {
       <ThinBar label="Protéines" pct={t.p / S.prot} from="#FF8A3D" to="#FFB547" right={`${fint(t.p)} / ${S.prot} g`} />
       {fav && (
         <button className="suggest" onClick={() => A.addItems(ctx, todayK, fav.f.items, fav.f.name)}>
-          <span className="sg-l"><span className="sg-k">Prochain repas, vise ~{fint(Math.round(L.clamp(p.perMeal, 350, 1100) / 50) * 50)} kcal</span><span className="sg-n">{fav.f.name}</span></span>
+          <span className="sg-l"><span className="sg-k">{planned ? `${planned.label} (${planned.time.replace(":", " h ")})` : "Prochain repas"}, vise ~{fint(Math.round(target / 50) * 50)} kcal</span><span className="sg-n">{fav.f.name}</span></span>
           <span className="sg-r">{fint(fav.k)} kcal<span className="sg-plus"><Icon n="plus" size={16} sw={2.6} /></span></span>
         </button>
       )}
@@ -220,10 +283,11 @@ function MissionsCard({ ctx, d }) {
   rows.push(tr.todayW
     ? { id: "train", label: `Séance ${tr.todayW.session || ""}`.trim(), sub: tr.todayW.title, done: true, status: { text: "Fait" }, act: () => ctx.go("sport") }
     : tr.due ? { id: "train", label: `Séance ${tr.next}`, sub: "Tes charges sont prêtes", done: false, status: top === "train" ? { text: "Maintenant", cls: "now" } : { text: "Aujourd'hui", cls: "prog" }, act: () => ctx.go("sport") }
-    : { id: "train", label: "Repos", sub: `Séance ${tr.next} demain · ${tr.wk}/3 cette semaine`, done: true, status: { text: "Repos" }, act: () => ctx.go("sport") });
+    : { id: "train", label: "Repos", sub: tr.wk >= 3 ? "Semaine bouclée, 3/3 séances" : tr.moved === "tomorrow" ? `Séance ${tr.next} décalée à demain` : `Séance ${tr.next} demain · ${tr.wk}/3 cette semaine`, done: true, status: { text: "Repos" }, act: () => ctx.go("sport") });
   const isWeigh = L.keyToDate(todayK).getDay() === S.weighDay && L.getWeights()[todayK] == null;
   if (isWeigh) rows.splice(1, 0, { id: "weigh", label: "Pesée", sub: "À jeun, après les toilettes", done: false, status: top === "weigh" ? { text: "Maintenant", cls: "now" } : { text: "Aujourd'hui", cls: "prog" }, act: () => ctx.go("progress", undefined, "weight") });
-  if (!night) rows.push({ id: "bed", label: "Poser le téléphone", sub: st.avgBed != null ? `Vise ${L.hFr(Math.round(Math.max(300, st.avgBed - 20) / 10) * 10)}` : "Un appui au coucher, un au réveil", done: false, status: top === "bed" ? { text: "Maintenant", cls: "now" } : { text: "Ce soir" }, act: () => (hr >= 20 || hr < 5 ? A.startNight(ctx) : ctx.say("Ce soir, au moment de dormir 🌙")) });
+  const bt = L.bedTarget(todayK);
+  if (!night) rows.push({ id: "bed", label: "Poser le téléphone", sub: `${bt.plan ? "Prévu vers" : "Vise"} ${L.hFr(bt.min)}`, done: false, status: top === "bed" ? { text: "Maintenant", cls: "now" } : { text: "Ce soir" }, act: () => (L.isLate(todayK, now) || hr >= 20 || hr < 5 ? A.startNight(ctx) : ctx.say("Ce soir, au moment de dormir 🌙")) });
   const counted = rows.filter((r) => r.id !== "bed" && r.id !== "wake");
   const count = counted.filter((r) => r.done).length, total = counted.length;
   return (

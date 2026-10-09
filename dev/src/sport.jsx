@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import * as L from "./lib.js";
-import { PROGRAM, RULES } from "./data.js";
-import { Sheet, Icon, buzz } from "./ui.jsx";
+import { RULES } from "./data.js";
+import { Sheet, Icon, buzz, GramInput } from "./ui.jsx";
 
 const { fint, fdec, fkg } = L;
 const shortDate = (k) => L.cap(L.fmtDay(k, { weekday: "short", day: "numeric", month: "short" }));
@@ -21,7 +21,9 @@ export function Sport({ ctx }) {
   const [all, setAll] = useState(false);
   const wk = L.weekWorkouts(ctx.todayK, ws);
   const ws0 = L.weekStartKey(ctx.todayK);
-  const prog = PROGRAM.find((p) => p.day === sel);
+  const PROG = L.getProgram();
+  const prog = PROG.find((p) => p.day === sel) || PROG[0];
+  const diffs = PROG.map((p) => L.sessionDiff(p.day)).filter(Boolean);
   const head = tr.todayW ? { t: `${tr.todayW.title} faite`, s: "Bien joué. Récupère bien, mange bien." }
     : tr.due ? { t: `Séance ${tr.next} aujourd'hui`, s: "Voici tes charges. Garde cet écran ouvert à la salle." }
     : { t: "Repos aujourd'hui", s: `Prochaine : séance ${tr.next}. ${tr.wk}/3 cette semaine.` };
@@ -45,8 +47,10 @@ export function Sport({ ctx }) {
         <button className="cta sun full" onClick={() => ctx.open({ type: "hevy" })}><Icon n="clip" size={18} /> Importer une séance Hevy</button>
       </section>
 
+      {diffs.map((df) => <DiffCard key={df.w.id + df.day} df={df} ctx={ctx} onDone={() => setSel(df.day)} />)}
+
       <div className="seg">
-        {PROGRAM.map((p) => (
+        {PROG.map((p) => (
           <button key={p.day} className={sel === p.day ? "on" : ""} onClick={() => { setSel(p.day); setOpen(null); }}>
             Séance {p.day}{p.day === tr.next && !tr.todayW && <small>prochaine</small>}
           </button>
@@ -56,6 +60,7 @@ export function Sport({ ctx }) {
       <div className="ex-list">
         {prog.exs.map((pe) => <ExRow key={pe.key} pe={pe} ws={ws} open={open === pe.key} onToggle={() => setOpen(open === pe.key ? null : pe.key)} />)}
       </div>
+      <button className="wide-btn ghost mt10" onClick={() => ctx.open({ type: "program", day: prog.day })}><Icon n="pen" size={17} /> Modifier la séance {prog.day}</button>
 
       <section className="block">
         <div className="block-head"><h3>Les règles</h3></div>
@@ -190,6 +195,109 @@ export function HevyImport({ ctx }) {
           })}
         </div>
       )}
+    </Sheet>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// « Ta séance C a changé » : propose de mettre le programme à jour
+// ─────────────────────────────────────────────────────────────
+function DiffCard({ df, ctx, onDone }) {
+  const { w, day, newEx, missing } = df;
+  const [pairs, setPairs] = useState(() => newEx.map((_, i) => (missing[i] ? missing[i].key : "")));
+  const used = new Set(pairs.filter(Boolean));
+  const leftover = missing.filter((m) => !used.has(m.key));
+  const [remove, setRemove] = useState(() => new Set());
+  const apply = () => {
+    const undo = L.snapKey("program");
+    L.applySessionUpdate(day, newEx.map((ex, i) => ({ ex, replaceKey: pairs[i] || null })), [...remove]);
+    L.dismissDiff(w.id, day);
+    buzz(12);
+    ctx.say(`Séance ${day} mise à jour`, { undo });
+    onDone && onDone();
+  };
+  return (
+    <section className="panel diff">
+      <h2 className="panel-t">Ta séance {day} a changé ?</h2>
+      <p className="muted small mb10">Dans ta séance du {L.fmtDay(w.date.slice(0, 10), { day: "numeric", month: "long" })}, {newEx.length > 1 ? "ces exercices ne sont" : "cet exercice n'est"} pas dans ton programme.</p>
+      {newEx.map((ex, i) => (
+        <div key={i} className="diff-row">
+          <div className="diff-n">{ex.name}<span className="item-sub"> · {ex.sets.filter((x) => !x.warm).map((x) => (x.w ? `${L.fdec(x.w, 2)}×${x.r}` : x.r)).join("  ")}</span></div>
+          <label className="diff-sel">
+            <span>Remplace</span>
+            <select className="inp" value={pairs[i]} onChange={(e) => setPairs(pairs.map((p, j) => (j === i ? e.target.value : p)))}>
+              <option value="">rien, c'est en plus</option>
+              {missing.map((m) => <option key={m.key} value={m.key} disabled={used.has(m.key) && pairs[i] !== m.key}>{m.name}</option>)}
+            </select>
+          </label>
+        </div>
+      ))}
+      {leftover.length > 0 && (
+        <div className="mt10">
+          <div className="sub-h" style={{ marginTop: 6 }}>Pas faits cette fois</div>
+          {leftover.map((m) => (
+            <button key={m.key} className={"toggle small" + (remove.has(m.key) ? " on" : "")} onClick={() => { const r = new Set(remove); r.has(m.key) ? r.delete(m.key) : r.add(m.key); setRemove(r); }}>
+              <span>Retirer « {m.name} » de la séance</span><span className="sw"><i /></span>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="cta-row mt14">
+        <button className="cta ghost" onClick={() => { L.dismissDiff(w.id, day); ctx.say("Programme inchangé"); }}>Ignorer</button>
+        <button className="cta sun" onClick={apply}>Mettre à jour</button>
+      </div>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Modifier une séance à la main
+// ─────────────────────────────────────────────────────────────
+export function ProgramEdit({ ctx, day }) {
+  const [prog, setProg] = useState(() => L.getProgram().map((d) => ({ ...d, exs: d.exs.map((x) => ({ ...x })) })));
+  const [edit, setEdit] = useState(null);
+  const d = prog.find((x) => x.day === day);
+  const setExs = (exs) => setProg(prog.map((x) => (x.day === day ? { ...x, exs } : x)));
+  const move = (i, dir) => { const a = [...d.exs]; const j = i + dir; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; setExs(a); };
+  const save = () => { const undo = L.snapKey("program"); L.setProgram(prog); ctx.say(`Séance ${day} enregistrée`, { undo }); ctx.close(); };
+  const reset = () => { const undo = L.snapKey("program"); L.resetProgram(); ctx.say("Programme d'origine remis", { undo }); ctx.close(); };
+  if (edit) {
+    const ok = edit.name.trim() && edit.sets > 0 && edit.min > 0 && edit.max >= edit.min;
+    const commit = () => {
+      if (!ok) return;
+      const base = edit.i >= 0 ? d.exs[edit.i] : { key: "x_" + L.norm(edit.name).replace(/[^a-z0-9]+/g, "_").slice(0, 20) + "_" + L.uid().slice(-4), a: [], cues: [], inc: 2.5 };
+      const nx = { ...base, name: edit.name.trim(), a: [...new Set([...(base.a || []), L.norm(edit.name)])], sets: edit.sets, min: edit.min, max: edit.max, start: edit.start || 0, rest: edit.max >= 12 ? "60-90 s" : "2 min" };
+      setExs(edit.i >= 0 ? d.exs.map((x, j) => (j === edit.i ? nx : x)) : [...d.exs, nx]);
+      setEdit(null);
+    };
+    const N = (k, label, unit = "") => (
+      <label className="field"><span>{label}</span><GramInput unit={unit} value={edit[k]} onChange={(v) => setEdit({ ...edit, [k]: v ?? 0 })} /></label>
+    );
+    return (
+      <Sheet title={edit.i >= 0 ? "Modifier l'exercice" : "Nouvel exercice"} onClose={ctx.close}
+        footer={<div className="cta-row"><button className="cta ghost" onClick={() => setEdit(null)}>Retour</button><button className="cta sun" disabled={!ok} onClick={commit}>OK</button></div>}>
+        <label className="field"><span>Nom (le même que dans Hevy, c'est mieux)</span><input className="inp" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} placeholder="Curl Pupitre (Barre)" /></label>
+        <div className="grid2">{N("sets", "Séries")}{N("start", "Charge de départ", "kg")}{N("min", "Reps minimum")}{N("max", "Reps maximum")}</div>
+      </Sheet>
+    );
+  }
+  return (
+    <Sheet title={`Séance ${day}`} onClose={ctx.close} tall
+      footer={<div className="cta-row"><button className="cta ghost" onClick={ctx.close}>Annuler</button><button className="cta sun" onClick={save}>Enregistrer</button></div>}>
+      <p className="muted small mb10">Touche un exercice pour le modifier. Tes séances déjà enregistrées ne bougent pas.</p>
+      {d.exs.map((x, i) => (
+        <div key={x.key} className="pe-row">
+          <button className="pe-main" onClick={() => setEdit({ i, name: x.name, sets: x.sets, min: x.min, max: x.max, start: x.start || 0 })}>
+            <span className="nm">{x.name}</span>
+            <span className="item-sub">{x.sets} × {x.min}-{x.max}{x.start ? ` · départ ${L.fdec(x.start, 2)} kg` : ""}</span>
+          </button>
+          <button className="pe-btn" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Monter">↑</button>
+          <button className="pe-btn" onClick={() => move(i, 1)} disabled={i === d.exs.length - 1} aria-label="Descendre">↓</button>
+          <button className="x-btn" onClick={() => setExs(d.exs.filter((_, j) => j !== i))} aria-label={`Retirer ${x.name}`}><Icon n="close" size={14} sw={2.4} /></button>
+        </div>
+      ))}
+      <button className="wide-btn mt10" onClick={() => setEdit({ i: -1, name: "", sets: 3, min: 8, max: 12, start: 0 })}><Icon n="plus" size={17} /> Ajouter un exercice</button>
+      {L.isCustomProgram() && <button className="link small mt10" onClick={reset}>Remettre tout le programme d'origine</button>}
     </Sheet>
   );
 }
