@@ -1,8 +1,9 @@
 # Isma Daily
 
-Tracker perso façon instrument de bord : un cadran de 24 h (sommeil, repas, séance, calories,
-protéines), la prochaine chose à faire, les rituels du jour (lumière, créatine, eau, minoxidil,
-posture), la semaine en matrice, la trajectoire du poids, les séances Hevy et le coach.
+Tracker perso en néon : le carburant du jour (calories face au rythme idéal), la prochaine chose
+à faire, les tuiles protéines, eau, sommeil et salle, les rituels (lumière, créatine, minoxidil,
+posture), la routine posture guidée de 5 minutes, les photos glow-up avant / après, la semaine en
+matrice, la trajectoire du poids, les séances Hevy et le coach.
 Ouvert sur iPhone depuis l'écran d'accueil : https://contactvisulink-stack.github.io/Tracker-/
 
 - `index.html` : l'app (un seul fichier, rien à installer).

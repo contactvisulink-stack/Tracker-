@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import * as L from "./lib.js";
 import * as A from "./actions.js";
 import { Icon, Count, reduceMotion } from "./ui.jsx";
@@ -12,18 +12,45 @@ export function greeting(now, night) {
   return h >= 5 && h < 12 ? "Bonjour" : h >= 12 && h < 18 ? "Bon après-midi" : h >= 18 && h < 23 ? "Bonsoir" : "Il est tard";
 }
 
+let booted = false; // l'animation d'ouverture ne se joue qu'une fois par ouverture de l'app
+function useBoot() {
+  const [first] = useState(() => !booted && !reduceMotion());
+  useEffect(() => { booted = true; }, []);
+  return first;
+}
+function useWidth(ref, fallback = 320) {
+  const [w, setW] = useState(fallback);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const upd = () => setW(Math.max(200, Math.round(el.getBoundingClientRect().width)));
+    upd();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(upd);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return w;
+}
+
 export function Home({ ctx }) {
   const d = L.getDay(ctx.todayK);
   const night = L.store.get("night", null);
   const plan = L.getPlan(ctx.todayK);
+  const boot = useBoot();
   return (
-    <div className={"page home" + (night ? " at-night" : "")}>
-      <Dial ctx={ctx} d={d} night={night} />
-      <Readouts ctx={ctx} d={d} night={night} />
+    <div className={"page home" + (night ? " at-night" : "") + (boot ? " boot" : "")}>
+      {night ? <NightHero ctx={ctx} night={night} /> : <Hero ctx={ctx} d={d} boot={boot} />}
       <NowCard ctx={ctx} d={d} night={night} />
       {!night && (
         <>
           {plan && <PlanCard ctx={ctx} plan={plan} />}
+          <div className="bento">
+            <ProtTile ctx={ctx} d={d} />
+            <WaterTile ctx={ctx} d={d} />
+            <SleepTile ctx={ctx} d={d} />
+            <TrainTile ctx={ctx} />
+          </div>
           <Rituals ctx={ctx} d={d} />
           {!plan && <CoachBar ctx={ctx} />}
           <WeekMatrix ctx={ctx} />
@@ -35,242 +62,193 @@ export function Home({ ctx }) {
 }
 
 // ═════════════════════════════════════════════════════════════
-// Le cadran : ta journée sur 24 h (minuit en haut)
-//  · couronne : nuit, repas, séance, maintenant, coucher visé
-//  · anneau : calories, un segment par repas, et le repère « où tu devrais en être »
-//  · anneau fin : protéines
-// À l'ouverture de l'app, il s'allume comme un tableau de bord.
+// Le carburant du jour : le gros chiffre en néon et la courbe de ta journée
+// (en marches : une marche par repas) face à la ligne du rythme idéal
 // ═════════════════════════════════════════════════════════════
-const C = 160;
-const R = { tickOut: 155, lane: 139, num: 124, kcal: 104, prot: 87.5 };
-const rad = (a) => (a * Math.PI) / 180;
-const P = (a, r) => [C + r * Math.sin(rad(a)), C - r * Math.cos(rad(a))];
-const f1 = (n) => Math.round(n * 10) / 10;
-function arc(a0, a1, r) {
-  const sw = a1 - a0;
-  if (sw <= 0.05) return "";
-  if (sw >= 359.95) {
-    const [x0, y0] = P(a0, r), [x1, y1] = P(a0 + 180, r);
-    return `M${f1(x0)} ${f1(y0)}A${r} ${r} 0 1 1 ${f1(x1)} ${f1(y1)}A${r} ${r} 0 1 1 ${f1(x0)} ${f1(y0)}`;
-  }
-  const [x0, y0] = P(a0, r), [x1, y1] = P(a1, r);
-  return `M${f1(x0)} ${f1(y0)}A${r} ${r} 0 ${sw > 180 ? 1 : 0} 1 ${f1(x1)} ${f1(y1)}`;
-}
-const minA = (m) => (m / 1440) * 360;
-const span = (from, to) => { const a0 = minA(from); let a1 = minA(to); if (a1 <= a0) a1 += 360; return [a0, a1]; };
-const ease = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
-const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
-const mix = (a, b, t) => { const A1 = hex(a), B1 = hex(b); return `rgb(${A1.map((v, i) => Math.round(v + (B1[i] - v) * t)).join(",")})`; };
-
-let ignited = false; // une seule fois par ouverture de l'app
-function useIgnition(ms = 1250) {
-  const [t, setT] = useState(() => (ignited || reduceMotion() ? 1 : 0));
-  useEffect(() => {
-    ignited = true;
-    if (t >= 1) return;
-    const t0 = performance.now();
-    let raf;
-    const step = (x) => { const v = Math.min(1, (x - t0) / ms); setT(v); if (v < 1) raf = requestAnimationFrame(step); };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-  return t;
-}
-
-const TICKS = Array.from({ length: 96 }, (_, i) => {
-  const kind = i % 24 === 0 ? 4 : i % 12 === 0 ? 3 : i % 4 === 0 ? 2 : 1;
-  return { a: i * 3.75, r0: [0, 151.5, 148.5, 145.5, 142][kind], op: [0, 0.16, 0.34, 0.55, 0.95][kind], w: kind === 4 ? 1.8 : kind >= 2 ? 1.3 : 1 };
-});
-const NUMS = [["00", 0], ["06", 90], ["12", 180], ["18", 270]];
-
-function Dial({ ctx, d, night }) {
+const hhmm = (m) => { const t = ((Math.round(m) + 300) % 1440 + 1440) % 1440; return `${Math.floor(t / 60)}\u00a0h`; };
+function Hero({ ctx, d, boot }) {
   const { S, todayK } = ctx;
   const now = new Date(ctx.now);
-  const t = useIgnition();
-  const [from0] = useState(t < 1);
-  const D = L.dialData(todayK, now, S);
-  const tk = D.t.k || D.legacy;
-  const tickP = ease(t / 0.55), handP = ease(t / 0.7), ringP = ease((t - 0.15) / 0.85);
-  const nowA = minA(D.now);
-  const handA = nowA * handP;
-
-  // calories : un segment par repas (dégradé du bleu du matin au violet du soir)
-  const segs = [];
-  let acc = 0;
-  const parts = D.meals.length ? D.meals : D.legacy ? [{ k: D.legacy }] : [];
-  parts.forEach((m, i) => {
-    const sw = (m.k / S.kcal) * 360;
-    if (sw <= 0 || acc >= 360) return;
-    const a0 = acc, a1 = Math.min(360, acc + sw);
-    acc = a1;
-    segs.push({ a0, a1, c: mix("#4F8DFF", "#A274FF", parts.length > 1 ? i / (parts.length - 1) : 0) });
+  const t = L.dayTot(d);
+  const tk = t.k || (d.legacy?.kcal ?? 0);
+  const p = L.pace(todayK, now, S);
+  const ref = useRef(null);
+  const W = useWidth(ref);
+  const H = 128, padT = 14, padB = 8;
+  // axe du temps : minutes depuis 5 h du matin (le début de ta journée)
+  const nowM = L.nowDayMin(now);
+  const wakeM = d.sleep?.wake ? L.dayMin(L.hm(d.sleep.wake)) : Math.min(nowM, L.dayMin("08:00"));
+  const endM = L.dayMin(L.hm(p.end));
+  const meals = d.entries.map((e) => ({ m: L.dayMin(e.t), k: L.entryTot(e).k })).sort((a, b) => a.m - b.m);
+  const planned = L.plannedMeals(todayK).filter((m) => !m.done).map((m) => ({ m: m.at, k: m.kcal }));
+  const x0 = Math.min(wakeM, meals[0]?.m ?? wakeM);
+  const x1 = Math.max(endM, nowM + 25, (meals[meals.length - 1]?.m ?? 0) + 25, ...planned.map((q) => q.m + 20));
+  const top = Math.max(S.kcal, tk) * 1.1;
+  const X = (m) => 4 + ((m - x0) / (x1 - x0 || 1)) * (W - 8);
+  const Y = (v) => H - padB - (v / top) * (H - padT - padB);
+  // la courbe en marches
+  let cum = 0;
+  const pts = [[X(x0), Y(0)]];
+  meals.forEach((ml) => {
+    const x = X(Math.max(x0, ml.m));
+    pts.push([x, Y(cum)]);
+    cum += ml.k;
+    pts.push([Math.min(x + 7, X(x1)), Y(cum)]);
   });
-  const shown = acc * ringP;
-  const gap = segs.length > 1 ? 1.6 : 0;
-  const ghostA = D.expected != null && !night && D.frac > 0.03 ? Math.min(359, (D.expected / S.kcal) * 360) : null;
-  const protA = Math.min(1, D.t.p / S.prot) * 360 * ringP;
-
-  // couronne
-  const sleep = D.sleep && !night ? span(D.sleep.from, D.sleep.to) : null;
-  const nightArc = night ? span(D.night.from, D.now) : null;
-  const awake = !night && D.wakeAt != null ? span(D.wakeAt, D.now) : null;
-  const toBed = !night ? span(D.now, D.bed) : null;
-  const showToBed = toBed && toBed[1] - toBed[0] < 220;
-  const train = D.train ? [minA(D.train.from), minA(D.train.from + D.train.len)] : null;
-  const moon = !night ? P(minA(D.bed), R.lane) : null;
-
-  // centre
-  let chip = null;
-  if (!night) {
-    if (tk >= S.kcal) chip = { cls: "ok", txt: tk - S.kcal >= 50 ? `+${fint(tk - S.kcal)} au-dessus` : "Objectif atteint" };
-    else if (ghostA == null) chip = { cls: "", txt: `${fint(S.kcal - tk)} à manger` };
-    else {
-      const diff = tk - D.expected;
-      chip = diff >= 120 ? { cls: "ok", txt: `+${fint(diff)} d'avance` } : diff <= -150 ? { cls: "late", txt: `−${fint(-diff)} de retard` } : { cls: "", txt: "Dans le rythme" };
-    }
-  }
-  const nightH = night ? (now - new Date(night.bed)) / 3.6e6 : 0;
-  const label = night
-    ? `Nuit en cours depuis ${L.hm(night.bed)}`
-    : `Calories : ${fint(tk)} sur ${fint(S.kcal)}. Protéines : ${fint(D.t.p)} grammes. Touche pour voir ta journée.`;
-
+  const nowX = X(Math.min(nowM, x1));
+  pts.push([Math.max(nowX, pts[pts.length - 1][0]), Y(cum)]);
+  const path = pts.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(" ");
+  const area = `${path} L${pts[pts.length - 1][0].toFixed(1)},${H} L${pts[0][0].toFixed(1)},${H} Z`;
+  const ideal = (m) => S.kcal * L.clamp((m - wakeM) / (endM - wakeM || 1), 0, 1);
+  const expNow = ideal(nowM);
+  const ahead = tk - expNow;
+  let chip;
+  if (tk >= S.kcal) chip = { cls: "ok", txt: tk - S.kcal >= 50 ? `+${fint(tk - S.kcal)} au-dessus` : "Objectif atteint" };
+  else if (p.frac < 0.04) chip = { cls: "", txt: "La journée commence" };
+  else chip = ahead >= 120 ? { cls: "ok", txt: `+${fint(ahead)} d'avance` } : ahead <= -150 ? { cls: "late", txt: `−${fint(-ahead)} de retard` } : { cls: "", txt: "Dans le rythme" };
+  const ticks = [0, 1, 2, 3].map((i) => x0 + ((x1 - x0) * i) / 3);
   return (
-    <button className={"dial" + (night ? " night" : "") + (t < 1 ? " booting" : "")} onClick={() => (night ? null : ctx.go("food"))} aria-label={label}>
-      <svg viewBox="0 0 320 320" aria-hidden="true">
-        <defs>
-          <radialGradient id="dFace" cx="50%" cy="42%" r="60%">
-            <stop offset="0%" stopColor="#16204A" stopOpacity=".55" />
-            <stop offset="70%" stopColor="#0A0F26" stopOpacity=".7" />
-            <stop offset="100%" stopColor="#060918" stopOpacity=".85" />
-          </radialGradient>
-          <linearGradient id="dBezel" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#FFFFFF" stopOpacity=".075" />
-            <stop offset="100%" stopColor="#FFFFFF" stopOpacity=".02" />
-          </linearGradient>
-          <linearGradient id="dSleep" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#7E62FF" />
-            <stop offset="100%" stopColor="#C3A8FF" />
-          </linearGradient>
-          <filter id="dGlow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.2" /></filter>
-          <mask id="dMoon"><rect width="320" height="320" fill="#fff" />{moon && <circle cx={moon[0] + 2.6} cy={moon[1] - 2} r="4.6" fill="#000" />}</mask>
-        </defs>
+    <section className="hero" aria-label={`Calories : ${fint(tk)} sur ${fint(S.kcal)}. ${chip.txt}.`}>
+      <span className="hero-spin" aria-hidden="true" />
+      <button className="hero-in" onClick={() => ctx.go("food")}>
+        <div className="hero-top">
+          <span className="hero-k">Carburant du jour</span>
+          <span className={"hero-chip " + chip.cls}>{chip.txt}</span>
+        </div>
+        <div className="hero-num">
+          <span className="hero-big"><Count v={tk} from0={boot} /></span>
+          <span className="hero-of">/ {fint(S.kcal)} kcal</span>
+        </div>
+        <div className="hero-sub">
+          {tk >= S.kcal ? "Le plus dur est fait aujourd'hui." : <>Encore <b>{fint(S.kcal - tk)}</b> kcal{p.remaining > 0 && p.hoursLeft > 0.5 ? `, environ ${Math.max(1, Math.round(p.hoursLeft / 3))} repas` : ""}.</>}
+        </div>
+        <div className="hero-chart" ref={ref}>
+          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+            <defs>
+              <linearGradient id="hcA" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#7C7CFF" stopOpacity=".42" /><stop offset="100%" stopColor="#4F8DFF" stopOpacity="0" /></linearGradient>
+              <linearGradient id="hcL" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#4F8DFF" /><stop offset="55%" stopColor="#9B6BFF" /><stop offset="100%" stopColor="#FF5FD2" /></linearGradient>
+              <filter id="hcG" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="4" /></filter>
+            </defs>
+            <line x1="0" x2={W} y1={Y(S.kcal)} y2={Y(S.kcal)} stroke="rgba(255,255,255,.14)" strokeDasharray="2 5" />
+            <text x={W - 2} y={Y(S.kcal) - 5} textAnchor="end" className="hc-goal">{fint(S.kcal)}</text>
+            <line x1={X(wakeM)} y1={Y(0)} x2={X(endM)} y2={Y(S.kcal)} stroke="rgba(214,224,255,.38)" strokeWidth="1.4" strokeDasharray="4 5" />
+            <path d={area} fill="url(#hcA)" className="hc-area" />
+            <path d={path} fill="none" stroke="url(#hcL)" strokeWidth="6" opacity=".55" filter="url(#hcG)" className="hc-line" pathLength="1" />
+            <path d={path} fill="none" stroke="url(#hcL)" strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" className="hc-line" pathLength="1" />
+            {planned.map((q, i) => <circle key={"p" + i} cx={X(q.m)} cy={Y(ideal(q.m))} r="4" fill="#0B0F26" stroke="#B9C8FF" strokeWidth="1.5" strokeDasharray="2 2" />)}
+            {Math.abs(ahead) >= 120 && tk < S.kcal && p.frac >= 0.04 && (
+              <line x1={nowX + 9} x2={nowX + 9} y1={Y(cum)} y2={Y(expNow)} stroke={ahead > 0 ? "#5BE7A9" : "#FFB547"} strokeWidth="2.4" strokeLinecap="round" opacity=".9" />
+            )}
+            <line x1={nowX} x2={nowX} y1={padT - 6} y2={H} stroke="rgba(255,255,255,.18)" strokeDasharray="2 3" />
+            {meals.map((ml, i) => { const x = X(Math.max(x0, ml.m)); let c = 0; for (let j = 0; j <= i; j++) c += meals[j].k; return <circle key={i} cx={Math.min(x + 7, X(x1))} cy={Y(c)} r="3.4" fill="#fff" className="hc-dot" />; })}
+            <circle cx={nowX} cy={Y(cum)} r="5" fill="#fff" className="hc-now" />
+          </svg>
+          <div className="hero-axis">{ticks.map((m, i) => <span key={i}>{i === 0 && d.sleep?.wake ? `Réveil ${L.hm(d.sleep.wake)}` : hhmm(m)}</span>)}</div>
+        </div>
+      </button>
+    </section>
+  );
+}
 
-        <circle cx={C} cy={C} r="146" fill="none" stroke="url(#dBezel)" strokeWidth="20" />
-        <circle cx={C} cy={C} r="135.5" fill="url(#dFace)" stroke="rgba(255,255,255,.06)" />
-        {TICKS.map((k, i) => {
-          const lit = i / 96 <= tickP ? 1 : 0.12;
-          const [x0, y0] = P(k.a, k.r0), [x1, y1] = P(k.a, R.tickOut);
-          return <line key={i} x1={f1(x0)} y1={f1(y0)} x2={f1(x1)} y2={f1(y1)} stroke="#DCE4FF" strokeOpacity={k.op * lit} strokeWidth={k.w} strokeLinecap="round" />;
-        })}
-        {NUMS.map(([n, a]) => { const [x, y] = P(a, R.num); return <text key={n} x={f1(x)} y={f1(y)} className="d-num" textAnchor="middle" dominantBaseline="central" opacity={tickP}>{n}</text>; })}
-
-        {/* couronne : la journée */}
-        <circle cx={C} cy={C} r={R.lane} fill="none" stroke="rgba(255,255,255,.045)" strokeWidth="6" />
-        {awake && <path d={arc(awake[0], awake[0] + (awake[1] - awake[0]) * handP, R.lane)} fill="none" stroke="rgba(220,228,255,.16)" strokeWidth="6" />}
-        {showToBed && <path d={arc(toBed[0], toBed[1], R.lane)} fill="none" stroke="#A88BFF" strokeOpacity=".55" strokeWidth="2" strokeDasharray="1.5 4.5" strokeLinecap="round" opacity={handP} />}
-        {sleep && <path d={arc(sleep[0], sleep[0] + (sleep[1] - sleep[0]) * ringP, R.lane)} fill="none" stroke="url(#dSleep)" strokeWidth="6" strokeLinecap="round" />}
-        {nightArc && <path className="d-nightarc" d={arc(nightArc[0], nightArc[1], R.lane)} fill="none" stroke="url(#dSleep)" strokeWidth="6" strokeLinecap="round" />}
-        {train && <path d={arc(train[0], train[1], R.lane)} fill="none" stroke="#FF8A3D" strokeWidth="6" strokeLinecap="round" opacity={ringP} />}
-        {D.planned.map((m, i) => { const [x, y] = P(minA(m.at), R.lane); return <circle key={"p" + i} cx={f1(x)} cy={f1(y)} r="3.6" fill="#060918" stroke="#8FB4FF" strokeWidth="1.4" opacity={ringP} />; })}
-        {D.meals.map((m, i) => {
-          const [x, y] = P(minA(m.at), R.lane);
-          return <circle key={"m" + i} cx={f1(x)} cy={f1(y)} r={f1(2.8 + Math.min(3.2, m.k / 300))} fill={segs[i]?.c || "#4F8DFF"} stroke="#050817" strokeWidth="1.6" opacity={ringP} />;
-        })}
-        {moon && <circle cx={f1(moon[0])} cy={f1(moon[1])} r="5.4" fill="#B9A2FF" mask="url(#dMoon)" opacity={handP} />}
-
-        {/* aiguille : maintenant */}
-        {(() => {
-          const [x0, y0] = P(handA, 131.5), [x1, y1] = P(handA, 146.5), [tx, ty] = P(handA, 156);
-          const [la, lb] = [P(handA - 2.4, 160.5), P(handA + 2.4, 160.5)];
-          return (
-            <g className="d-hand">
-              <line x1={f1(x0)} y1={f1(y0)} x2={f1(x1)} y2={f1(y1)} stroke="#fff" strokeWidth="5" strokeOpacity=".35" filter="url(#dGlow)" />
-              <line x1={f1(x0)} y1={f1(y0)} x2={f1(x1)} y2={f1(y1)} stroke="#fff" strokeWidth="2" strokeLinecap="round" />
-              <path d={`M${f1(tx)} ${f1(ty)}L${f1(la[0])} ${f1(la[1])}L${f1(lb[0])} ${f1(lb[1])}Z`} fill="#fff" />
-            </g>
-          );
-        })()}
-
-        {/* calories */}
-        <g className="d-core">
-        <circle cx={C} cy={C} r={R.kcal} fill="none" stroke="rgba(255,255,255,.06)" strokeWidth="13" />
-        {ghostA != null && acc < ghostA && <path d={arc(acc, ghostA, R.kcal)} fill="none" stroke="#FFB547" strokeOpacity=".16" strokeWidth="13" opacity={ringP} />}
-        <g filter="url(#dGlow)" opacity=".55">
-          {segs.map((s, i) => { const a1 = Math.min(s.a1, shown); return a1 > s.a0 && <path key={i} d={arc(s.a0, Math.max(s.a0, a1 - (s.a1 <= shown && i < segs.length - 1 ? gap : 0)), R.kcal)} fill="none" stroke={s.c} strokeWidth="13" />; })}
-        </g>
-        {segs.map((s, i) => { const a1 = Math.min(s.a1, shown); return a1 > s.a0 && <path key={i} d={arc(s.a0, Math.max(s.a0, a1 - (s.a1 <= shown && i < segs.length - 1 ? gap : 0)), R.kcal)} fill="none" stroke={s.c} strokeWidth="13" />; })}
-        {ghostA != null && (() => {
-          const [x0, y0] = P(ghostA, 93), [x1, y1] = P(ghostA, 115);
-          return <line x1={f1(x0)} y1={f1(y0)} x2={f1(x1)} y2={f1(y1)} stroke="#fff" strokeWidth="2.2" strokeLinecap="round" opacity={ringP} className="d-ghost" />;
-        })()}
-
-        {/* protéines */}
-        <circle cx={C} cy={C} r={R.prot} fill="none" stroke="rgba(255,138,61,.12)" strokeWidth="3.5" />
-        {protA > 0.5 && <path d={arc(0, protA, R.prot)} fill="none" stroke="#FF8A3D" strokeOpacity=".9" strokeWidth="3.5" strokeLinecap="round" />}
-        </g>
-      </svg>
-
-      <div className="d-center">
-        {night ? (
-          <>
-            <span className="d-k">Nuit en cours</span>
-            <span className="d-big">{fH(nightH)}</span>
-            <span className="d-sub">depuis {L.hm(night.bed)}</span>
-          </>
-        ) : (
-          <>
-            <span className="d-big"><Count v={tk} from0={from0} /></span>
-            <span className="d-sub">sur {fint(S.kcal)} kcal</span>
-            {chip && <span className={"d-chip " + chip.cls}>{chip.txt}</span>}
-          </>
-        )}
+function NightHero({ ctx, night }) {
+  const now = new Date(ctx.now);
+  const h = (now - new Date(night.bed)) / 3.6e6;
+  const S = ctx.S;
+  const pct = L.clamp(h / S.sleep, 0, 1);
+  return (
+    <section className="hero night" aria-label={`Nuit en cours depuis ${L.hm(night.bed)}`}>
+      <span className="hero-spin" aria-hidden="true" />
+      <div className="hero-in">
+        <div className="hero-top"><span className="hero-k">Nuit en cours</span><span className="hero-chip moon">depuis {L.hm(night.bed)}</span></div>
+        <div className="hero-num"><span className="hero-big">{fH(h)}</span></div>
+        <div className="hero-sub">Objectif {fdec(S.sleep)} h. Le reste attendra demain.</div>
+        <div className="night-bar"><span style={{ width: `${pct * 100}%` }} /></div>
       </div>
-    </button>
+    </section>
   );
 }
 
 // ═════════════════════════════════════════════════════════════
-// Trois lectures sous le cadran
+// Les tuiles : protéines, eau, sommeil, séance
 // ═════════════════════════════════════════════════════════════
-function Readouts({ ctx, d, night }) {
-  const { S, todayK } = ctx;
+function Ring({ v, size = 74, sw = 7, color, track }) {
+  const r = (size - sw) / 2 - 2, c = 2 * Math.PI * r, p = L.clamp(v, 0, 1);
+  return (
+    <svg className="t-ring" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={track} strokeWidth={sw} />
+      {p > 0 && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={sw + 4} strokeOpacity=".25" strokeDasharray={c} strokeDashoffset={c * (1 - p)} transform={`rotate(-90 ${size / 2} ${size / 2})`} strokeLinecap="round" className="t-arc glow" />}
+      {p > 0 && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={sw} strokeDasharray={c} strokeDashoffset={c * (1 - p)} transform={`rotate(-90 ${size / 2} ${size / 2})`} strokeLinecap="round" className="t-arc" />}
+    </svg>
+  );
+}
+function ProtTile({ ctx, d }) {
+  const { S } = ctx;
   const t = L.dayTot(d);
+  const ok = t.p >= S.prot;
+  return (
+    <button className="tile t-prot" onClick={() => ctx.go("food")} aria-label={`Protéines : ${fint(t.p)} grammes sur ${S.prot}`}>
+      <span className="tile-h"><Icon n="bolt" size={15} sw={2.1} />Protéines</span>
+      <span className="tile-row">
+        <span className="tile-v"><Count v={t.p} from0={false} /><small>g</small></span>
+        <Ring v={t.p / S.prot} color="#FF8A3D" track="rgba(255,138,61,.14)" size={58} sw={6} />
+      </span>
+      <span className="tile-s">{ok ? "Objectif atteint" : `Encore ${fint(S.prot - t.p)} g sur ${S.prot}`}</span>
+    </button>
+  );
+}
+function WaterTile({ ctx, d }) {
+  const { S, todayK } = ctx;
+  const w = d.water || 0;
+  const pct = L.clamp(w / S.water, 0, 1);
+  return (
+    <button className={"tile t-water" + (pct >= 1 ? " full" : "")} onClick={() => A.addWater(ctx, todayK, 0.5)} aria-label={`Eau : ${fdec(w)} litre sur ${fdec(S.water)}. Touche pour ajouter un demi-litre.`}>
+      <span className="liquid" style={{ height: `${8 + pct * 80}%` }} aria-hidden="true">
+        <svg className="wave w1" viewBox="0 0 200 20" preserveAspectRatio="none"><path d="M0 10 Q 25 0 50 10 T 100 10 T 150 10 T 200 10 V20 H0Z" /></svg>
+        <svg className="wave w2" viewBox="0 0 200 20" preserveAspectRatio="none"><path d="M0 10 Q 25 20 50 10 T 100 10 T 150 10 T 200 10 V20 H0Z" /></svg>
+      </span>
+      <span className="tile-h"><Icon n="drop" size={15} sw={2.1} />Eau</span>
+      <span className="tile-v">{fdec(w)}<small>L</small></span>
+      <span className="tile-s">{pct >= 1 ? "Objectif atteint" : `sur ${fdec(S.water)} L, touche +0,5`}</span>
+    </button>
+  );
+}
+function SleepTile({ ctx, d }) {
+  const { S, todayK } = ctx;
   const h = L.daySleepH(d);
   const bt = L.bedTarget(todayK);
-  const tr = L.trainingStatus(todayK);
-  const nextDay = tr.wk >= 3 ? "lundi" : tr.moved === "tomorrow" || !tr.due ? "demain" : "aujourd'hui";
-  const sess = tr.todayW
-    ? { v: tr.todayW.session || "✓", s: "faite", done: true }
-    : tr.due ? { v: tr.next, s: "aujourd'hui", hot: true }
-    : { v: tr.wk >= 3 ? "Repos" : tr.next, s: tr.wk >= 3 ? "semaine bouclée" : nextDay };
-  const openSleep = () => (night ? null : ctx.open({ type: "sleep", k: todayK }));
+  const nights = Array.from({ length: 7 }, (_, i) => { const k = L.addDays(todayK, i - 6); return { k, h: L.daySleepH(L.getDay(k)) }; });
   return (
-    <div className="ro">
-      <button className="ro-i c-prot" onClick={() => ctx.go("food")}>
-        <span className="ro-l">Protéines</span>
-        <span className="ro-v"><Count v={t.p} from0={false} /><small> g</small></span>
-        <span className="ro-s">{t.p >= S.prot ? "objectif atteint" : `sur ${S.prot} g`}</span>
-      </button>
-      <button className="ro-i c-moon" onClick={openSleep}>
-        <span className="ro-l">Nuit</span>
-        <span className="ro-v">{night ? L.hm(night.bed) : h != null ? fH(h) : "–"}</span>
-        <span className="ro-s">{night ? "téléphone posé" : `coucher ${L.hFr(bt.min)}`}</span>
-      </button>
-      <button className="ro-i c-train" onClick={() => ctx.go("sport")}>
-        <span className="ro-l">Séance <span className="ro-pips" aria-label={`${tr.wk} séances sur 3 cette semaine`}>{[0, 1, 2].map((i) => <i key={i} className={i < tr.wk ? "on" : ""} />)}</span></span>
-        <span className={"ro-v" + (sess.hot ? " hot" : "")}>{sess.v}{sess.done && <Icon n="check" size={15} sw={3} />}</span>
-        <span className="ro-s">{sess.s}</span>
-      </button>
-    </div>
+    <button className="tile t-sleep" onClick={() => ctx.open({ type: "sleep", k: todayK })} aria-label={`Sommeil : ${h != null ? fH(h) : "pas noté"}. Coucher visé ${L.hFr(bt.min)}.`}>
+      <span className="tile-h"><Icon n="moon" size={15} sw={2.1} />Sommeil</span>
+      <span className="tile-v">{h != null ? fH(h) : "À noter"}</span>
+      <span className="mini-bars" aria-hidden="true">
+        {nights.map((n) => <i key={n.k} className={n.k === todayK ? "on" : ""} style={{ height: `${n.h != null ? 18 + L.clamp(n.h / 10, 0, 1) * 82 : 10}%`, opacity: n.h != null ? 1 : 0.35 }} />)}
+      </span>
+      <span className="tile-s">Coucher visé {L.hFr(bt.min)}</span>
+    </button>
+  );
+}
+function TrainTile({ ctx }) {
+  const tr = L.trainingStatus(ctx.todayK);
+  const prog = L.getProgram().find((p) => p.day === (tr.todayW?.session || tr.next));
+  const v = tr.todayW ? `${tr.todayW.session || ""} faite`.trim() : tr.wk >= 3 && !tr.due ? "Repos" : `Séance ${tr.next}`;
+  const s = tr.todayW ? "Bien joué, récupère." : tr.due ? `Aujourd'hui, ${prog?.exs.length || 0} exercices prêts` : tr.wk >= 3 ? "Semaine bouclée" : tr.moved === "tomorrow" ? "Décalée à demain" : "Demain";
+  return (
+    <button className={"tile t-train" + (tr.due ? " hot" : "")} onClick={() => ctx.go("sport")} aria-label={`${v}. ${s}. ${tr.wk} séances sur 3 cette semaine.`}>
+      <span className="tile-h"><Icon n="dumbbell" size={15} sw={2.1} />Salle</span>
+      <span className="tile-v">{v}{tr.todayW && <Icon n="check" size={18} sw={3} />}</span>
+      <span className="segs" aria-hidden="true">{[0, 1, 2].map((i) => <i key={i} className={i < tr.wk ? "on" : ""} />)}</span>
+      <span className="tile-s">{s}</span>
+    </button>
   );
 }
 
 // ═════════════════════════════════════════════════════════════
 // Maintenant : la prochaine chose à faire, en un appui
 // ═════════════════════════════════════════════════════════════
-const ACT_IC = { wake: "sun", sleeping: "moon", bed: "moon", weigh: "scale", light: "sun", logNight: "moon", eat: "fork", prot: "bolt", train: "dumbbell", crea: "pill", water: "drop", done: "spark", fed: "flame", chill: "spark" };
+const ACT_IC = { wake: "sun", sleeping: "moon", bed: "moon", weigh: "scale", light: "sun", logNight: "moon", eat: "fork", prot: "bolt", train: "dumbbell", crea: "pill", water: "drop", posture: "posture", photo: "camera", done: "spark", fed: "flame", chill: "spark" };
 const RITUAL_ACTS = new Set(["light", "crea", "water"]);
-const DEMOTE = new Set(["crea", "water"]); // déjà dans les rituels, juste en dessous
+const DEMOTE = new Set(["crea", "water"]); // déjà à portée de main sur l'accueil (rituels, tuile eau)
 const QUIET = new Set(["chill", "done", "fed", "sleeping"]);
 function NowCard({ ctx, d, night }) {
   const { S, todayK } = ctx;
@@ -302,8 +280,10 @@ function NowCard({ ctx, d, night }) {
     crea: () => A.toggleHabit(ctx, todayK, "creatine", "Créatine"),
     water: () => A.addWater(ctx, todayK, 0.5),
     eat: () => ctx.open({ type: "add", k: todayK }),
+    posture: () => ctx.open({ type: "posture" }),
+    photo: () => ctx.go("progress", undefined, "glowup"),
   };
-  const BTN = { wake: "Je suis levé", bed: "Je pose le téléphone", weigh: "Noter mon poids", light: "C'est fait", logNight: "Noter ma nuit", prot: `Shaker whey + lait, +${fint(shTot.p)} g`, train: "Voir mes charges", crea: "C'est fait", water: "+0,5 L d'eau", eat: "Noter un repas" };
+  const BTN = { wake: "Je suis levé", bed: "Je pose le téléphone", weigh: "Noter mon poids", light: "C'est fait", logNight: "Noter ma nuit", prot: `Shaker whey + lait, +${fint(shTot.p)} g`, train: "Voir mes charges", crea: "C'est fait", water: "+0,5 L d'eau", eat: "Noter un repas", posture: "Lancer la routine, 5 min", photo: "Prendre la photo" };
   const next = acts.filter((a) => a !== main && a.id !== main.id && !RITUAL_ACTS.has(a.id) && !QUIET.has(a.id) && run[a.id]).slice(0, 2);
   const cancelNight = () => { const u = L.snapKey("night"); L.store.del("night"); ctx.say("Nuit annulée", { undo: u }); };
   const tone = main.tone || "sun";
@@ -399,7 +379,7 @@ function Rituals({ ctx, d }) {
   const doneN = list.filter((r) => L.ritualDone(r.id, d, S)).length;
   const autoCrea = d.entries.some((e) => e.items.some((i) => i.fid === "creatine"));
   const tap = (r) => {
-    if (r.id === "water") return A.addWater(ctx, todayK, 0.5);
+    if (r.id === "posture") return ctx.open({ type: "posture" });
     if (r.id === "creatine" && autoCrea && !d.h.creatine) return ctx.say("Créatine déjà comptée dans ton shaker");
     A.toggleHabit(ctx, todayK, r.id, r.label);
   };
@@ -431,21 +411,13 @@ function Rituals({ ctx, d }) {
 // ═════════════════════════════════════════════════════════════
 // Barre du coach : « ta journée change ? »
 // ═════════════════════════════════════════════════════════════
-const CHIPS = ["Ce soir je sors", "Je bosse ce soir", "Je me suis levé tard", "J'ai pas faim", "Pas de salle aujourd'hui"];
 function CoachBar({ ctx }) {
-  const [txt, setTxt] = useState("");
-  const ask = (m) => { const q = (m ?? txt).trim(); if (!q) return; setTxt(""); ctx.open({ type: "coach", ask: q }); };
   return (
-    <section className="cbar">
-      <div className="cbar-in">
-        <span className="cbar-ic"><Icon n="spark" size={17} sw={1.9} /></span>
-        <input value={txt} onChange={(e) => setTxt(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} placeholder="Ta journée change ?" aria-label="Message au coach" enterKeyHint="send" />
-        <button className="cbar-go" onClick={() => ask()} disabled={!txt.trim()} aria-label="Envoyer"><Icon n="right" size={18} sw={2.4} /></button>
-      </div>
-      <div className="cbar-chips">
-        {CHIPS.map((c) => <button key={c} className="chip" onClick={() => ask(c)}>{c}</button>)}
-      </div>
-    </section>
+    <button className="cbar" onClick={() => ctx.open({ type: "coach" })}>
+      <span className="cbar-ic"><Icon n="spark" size={18} sw={1.9} /></span>
+      <span className="cbar-tx"><b>Ta journée change ?</b><span>Sortie, service du soir, pas faim : ton coach réorganise tout.</span></span>
+      <span className="cbar-go"><Icon n="right" size={18} sw={2.4} /></span>
+    </button>
   );
 }
 

@@ -243,7 +243,7 @@ export function Settings({ ctx }) {
       <input ref={fileRef} type="file" accept="application/json,.json,text/plain" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; try { setRestore(await f.text()); setMsg("Fichier chargé : touche « Restaurer cette sauvegarde »."); } catch { setMsg("Fichier illisible."); } }} />
       <textarea className="inp mt10" style={{ minHeight: 70 }} value={restore} onChange={(e) => setRestore(e.target.value)} placeholder="Pour restaurer : colle une sauvegarde ici" />
       {restore.trim() && <button className="cta ghost full mt8" onClick={doRestore}>Restaurer cette sauvegarde</button>}
-      <p className="hint center mt18">Isma Daily, version 6, octobre 2026</p>
+      <p className="hint center mt18">Isma Daily, version 7, octobre 2026</p>
     </Sheet>
   );
 }

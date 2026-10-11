@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import * as L from "./lib.js";
 import { RULES } from "./data.js";
 import { Sheet, Icon, buzz, GramInput } from "./ui.jsx";
+import { PostureSection } from "./posture.jsx";
 
 const { fint, fdec, fkg } = L;
 const shortDate = (k) => L.cap(L.fmtDay(k, { weekday: "short", day: "numeric", month: "short" }));
@@ -14,6 +15,19 @@ function targetLine(pe, sg) {
 }
 
 export function Sport({ ctx }) {
+  const [view, setView] = useState(ctx.sub === "posture" ? "posture" : "gym");
+  return (
+    <div className="page">
+      <div className="seg top-seg">
+        <button className={view === "gym" ? "on" : ""} onClick={() => setView("gym")}>Salle</button>
+        <button className={view === "posture" ? "on" : ""} onClick={() => setView("posture")}>Posture{!L.getDay(ctx.todayK).h.posture && <small>à faire</small>}</button>
+      </div>
+      {view === "gym" ? <Gym ctx={ctx} /> : <PostureSection ctx={ctx} />}
+    </div>
+  );
+}
+
+function Gym({ ctx }) {
   const ws = L.getWorkouts();
   const tr = L.trainingStatus(ctx.todayK);
   const [sel, setSel] = useState(tr.todayW?.session || tr.next);
@@ -28,7 +42,7 @@ export function Sport({ ctx }) {
     : tr.due ? { t: `Séance ${tr.next} aujourd'hui`, s: "Voici tes charges. Garde cet écran ouvert à la salle." }
     : { t: "Repos aujourd'hui", s: `Prochaine : séance ${tr.next}. ${tr.wk}/3 cette semaine.` };
   return (
-    <div className="page">
+    <>
       <section className="panel">
         <h2 className="panel-t">{head.t}</h2>
         <p className="muted">{head.s}</p>
@@ -73,7 +87,7 @@ export function Sport({ ctx }) {
         {ws.slice(0, all ? 100 : 5).map((w) => <WorkoutRow key={w.id} w={w} ctx={ctx} />)}
         {ws.length > 5 && <button className="link" onClick={() => setAll(!all)}>{all ? "Voir moins" : "Tout voir"}</button>}
       </section>
-    </div>
+    </>
   );
 }
 

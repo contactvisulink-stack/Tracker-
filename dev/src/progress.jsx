@@ -1,20 +1,22 @@
 import React, { useState } from "react";
 import * as L from "./lib.js";
 import { MiniTarget, Count, buzz } from "./ui.jsx";
+import { GlowUp } from "./glowup.jsx";
 
 const { fint, fdec, fH } = L;
 const shortDate = (k) => L.cap(L.fmtDay(k, { weekday: "short", day: "numeric", month: "short" }));
 const DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
 
 export function Progress({ ctx }) {
-  const [tab, setTab] = useState(ctx.sub === "weight" ? "weight" : "stats");
+  const [tab, setTab] = useState(ctx.sub === "weight" || ctx.sub === "glowup" ? ctx.sub : "stats");
   return (
     <div className="page">
-      <div className="seg">
-        <button className={tab === "stats" ? "on" : ""} onClick={() => setTab("stats")}>Ma progression</button>
+      <div className="seg top-seg">
+        <button className={tab === "stats" ? "on" : ""} onClick={() => setTab("stats")}>Stats</button>
         <button className={tab === "weight" ? "on" : ""} onClick={() => setTab("weight")}>Poids</button>
+        <button className={tab === "glowup" ? "on" : ""} onClick={() => setTab("glowup")}>Glow-up</button>
       </div>
-      {tab === "stats" ? <Stats ctx={ctx} /> : <Weight ctx={ctx} />}
+      {tab === "stats" ? <Stats ctx={ctx} /> : tab === "weight" ? <Weight ctx={ctx} /> : <GlowUp ctx={ctx} />}
     </div>
   );
 }

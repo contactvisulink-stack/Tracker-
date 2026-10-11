@@ -20,7 +20,7 @@ export const store = {
   emit,
 };
 
-export const DEFAULT_RITUALS = ["light", "creatine", "water", "minox", "posture"];
+export const DEFAULT_RITUALS = ["light", "creatine", "minox", "posture"];
 export const DEFAULTS = { kcal: 3000, prot: 100, water: 2.5, sleep: 7.5, goalW: 76, weighDay: 1, lat: 15, dayStart: 5, rituals: DEFAULT_RITUALS };
 export const getSettings = () => ({ ...DEFAULTS, ...store.get("settings", {}) });
 export const setSettings = (patch) => store.set("settings", { ...store.get("settings", {}), ...patch });
@@ -889,6 +889,12 @@ export function focusActions(k, now, S) {
     add({ id: "crea", prio: 50, ic: "💊", tone: "sky", title: "Créatine", text: "5 g, dans un shaker ou un verre d'eau." });
   if ((d.water || 0) < S.water && hr >= 14 && !late)
     add({ id: "water", prio: 40, ic: "💧", tone: "sky", title: `${fdec(S.water - (d.water || 0))} L d'eau à boire`, text: "Une bouteille à côté de toi, ça suffit." });
+  const rit = Array.isArray(S.rituals) ? S.rituals : DEFAULT_RITUALS;
+  if (rit.includes("posture") && !d.h.posture && hr >= 16 && !late)
+    add({ id: "posture", prio: 46, ic: "🧍", tone: "mint", title: "Routine posture", text: "5 exercices d'une minute, à la maison. L'appli te guide." });
+  const lp = store.get("lastPhoto", null);
+  if (lp && daysBetween(lp, k) >= 14 && hr >= 9 && hr < 21 && !late)
+    add({ id: "photo", prio: 36, ic: "📸", tone: "flesh", title: "Photo glow-up", text: `Ta dernière date du ${fmtDay(lp, { day: "numeric", month: "long" })}. Même endroit, même lumière.` });
 
   if (!acts.length) {
     const sc = dayScore(d, S);
@@ -1151,9 +1157,8 @@ export async function saveBackupFile() {
 export const RITUALS = [
   { id: "light", label: "Lumière", ic: "sun", hint: "10 min dehors le matin", color: "#FFC15A" },
   { id: "creatine", label: "Créatine", ic: "pill", hint: "5 g par jour", color: "#3ED2F2" },
-  { id: "water", label: "Eau", ic: "drop", hint: "Touche pour +0,5 L", color: "#4FB6FF" },
   { id: "minox", label: "Minoxidil", ic: "dropper", hint: "Barbe et moustache", color: "#C9A5FF" },
-  { id: "posture", label: "Posture", ic: "posture", hint: "Menton, pecs, mur : 5 min", color: "#5BE7A9" },
+  { id: "posture", label: "Posture", ic: "posture", hint: "La routine de 5 min, dans Sport", color: "#5BE7A9" },
   { id: "spf", label: "SPF 50", ic: "shield", hint: "Crème solaire le matin", color: "#FF9A55" },
 ];
 export const activeRituals = (S) => {

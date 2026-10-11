@@ -40,6 +40,7 @@ const P = {
   fork: <><path d="M7 3.5v7.2a2.3 2.3 0 0 0 4.6 0V3.5M9.3 3.5v17" /><path d="M16.8 20.5V3.5c-2 1.2-3 3.6-3 6.7v3.3h3" /></>,
   bolt: <path d="M13.2 3 5.5 13.4h5.6L10.4 21l8.1-10.6h-5.7Z" />,
   undo: <path d="M9 7.5 4.5 12 9 16.5M5 12h9.5a5 5 0 0 1 0 10H12" />,
+  play: <path d="M8 5.6v12.8L18.6 12Z" fill="currentColor" />,
 };
 export function Icon({ n, size = 22, sw = 1.8, style }) {
   return (

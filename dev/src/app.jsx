@@ -7,6 +7,7 @@ import { Food, AddFood, Foods } from "./food.jsx";
 import { Sport, HevyImport, ProgramEdit } from "./sport.jsx";
 import { Progress } from "./progress.jsx";
 import { SleepEdit, Coach, Settings } from "./sheets.jsx";
+import { PosturePlayer } from "./posture.jsx";
 
 // ── Mise à jour automatique : l'app vérifie s'il existe une version plus récente en ligne
 const BUILD = (typeof document !== "undefined" && document.querySelector('meta[name="build"]')?.content) || "";
@@ -77,7 +78,7 @@ function App() {
     if (!kind) return;
     const big = kind === "all";
     setBurst({ id: Date.now(), big, x: "50%", y: big ? "34%" : "30%" });
-    const txt = { kcal: ["🔥", "Objectif calories atteint"], prot: ["🥩", "Protéines au complet"], sleep: ["🌙", "Nuit complète"], all: ["🎯", "Dans le mille"], workout: ["💪", "Séance dans la boîte"] }[kind];
+    const txt = { kcal: ["🔥", "Objectif calories atteint"], prot: ["🥩", "Protéines au complet"], sleep: ["🌙", "Nuit complète"], all: ["🎯", "Dans le mille"], workout: ["💪", "Séance dans la boîte"], posture: ["🧍", "Routine posture faite"] }[kind];
     setCel({ ic: txt[0], t: txt[1], big, id: Date.now() });
     buzz(big ? 30 : 15);
     clearTimeout(cRef.current);
@@ -182,6 +183,7 @@ function SheetRouter({ sheet, ctx }) {
     case "program": return <ProgramEdit ctx={ctx} day={sheet.day} />;
     case "coach": return <Coach ctx={ctx} ask={sheet.ask} />;
     case "settings": return <Settings ctx={ctx} />;
+    case "posture": return <PosturePlayer ctx={ctx} />;
     default: return null;
   }
 }
