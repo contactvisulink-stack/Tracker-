@@ -20,7 +20,8 @@ export const store = {
   emit,
 };
 
-export const DEFAULTS = { kcal: 3000, prot: 100, water: 2.5, sleep: 7.5, goalW: 76, weighDay: 1, lat: 15, dayStart: 5 };
+export const DEFAULT_RITUALS = ["light", "creatine", "water", "minox", "posture"];
+export const DEFAULTS = { kcal: 3000, prot: 100, water: 2.5, sleep: 7.5, goalW: 76, weighDay: 1, lat: 15, dayStart: 5, rituals: DEFAULT_RITUALS };
 export const getSettings = () => ({ ...DEFAULTS, ...store.get("settings", {}) });
 export const setSettings = (patch) => store.set("settings", { ...store.get("settings", {}), ...patch });
 
@@ -46,7 +47,7 @@ export const localISO = (d) => `${dkey(d)}T${pad(d.getHours())}:${pad(d.getMinut
 export const fint = (n) => Math.round(n || 0).toLocaleString("fr-FR");
 export const fdec = (n, d = 1) => (Math.round((n || 0) * 10 ** d) / 10 ** d).toLocaleString("fr-FR");
 export const fkg = (w) => `${fdec(w, 2)} kg`;
-export const fH = (h) => { if (h == null) return "–"; const t = Math.round(h * 60); return `${Math.floor(t / 60)} h ${pad(t % 60)}`; };
+export const fH = (h) => { if (h == null) return "–"; const t = Math.round(h * 60); return `${Math.floor(t / 60)}\u00a0h\u00a0${pad(t % 60)}`; };
 export const num = (s) => { const v = parseFloat(String(s ?? "").replace(",", ".").replace(/[^\d.\-]/g, "")); return Number.isFinite(v) ? v : null; };
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 export const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -789,7 +790,7 @@ export function pace(k, now, S) {
 }
 
 /** Heure de la nuit en toutes lettres : « 2 h 20 », « 1 h » */
-export const hFr = (nightMinutes) => { const t = (Math.round(nightMinutes / 5) * 5 + 1080) % 1440; const h = Math.floor(t / 60), m = t % 60; return m ? `${h} h ${pad(m)}` : `${h} h`; };
+export const hFr = (nightMinutes) => { const t = (Math.round(nightMinutes / 5) * 5 + 1080) % 1440; const h = Math.floor(t / 60), m = t % 60; return m ? `${h}\u00a0h\u00a0${pad(m)}` : `${h}\u00a0h`; };
 
 /** Favori dont les calories collent le mieux à ce qu'il te faut */
 export function bestFav(target) {
@@ -872,7 +873,7 @@ export function focusActions(k, now, S) {
   if (pm.length && !late) {
     const nm = nowDayMin(now);
     const next = pm.find((m) => !m.done && nm >= m.at - 30 && nm <= m.at + 90);
-    if (next) add({ id: "eat", prio: 86, ic: "🍽️", tone: "sun", title: `${next.label}, prévu à ${next.time.replace(":", " h ")}`, text: next.idea ? `${next.idea} · ~${fint(next.kcal)} kcal` : `Vise ~${fint(next.kcal)} kcal.`, target: next.kcal, planned: true });
+    if (next) add({ id: "eat", prio: 86, ic: "🍽️", tone: "sun", title: `${next.label}, prévu à ${next.time.replace(":", "\u00a0h\u00a0")}`, text: next.idea ? `${next.idea} · ~${fint(next.kcal)} kcal` : `Vise ~${fint(next.kcal)} kcal.`, target: next.kcal, planned: true });
   } else if (t.k < S.kcal - 250 && hr >= 7 && !late) {
     const noFood = !d.entries.length;
     const since = p.sinceLast == null ? 999 : p.sinceLast;
@@ -981,27 +982,6 @@ export function upcoming(k, S, now) {
   return out.sort((a, b) => a.k.localeCompare(b.k));
 }
 
-/** Météo de Perth (Open-Meteo, gratuit, sans clé), gardée 30 min */
-const WMO = [[[0], "Ciel dégagé", "☀️", "🌙"], [[1], "Plutôt dégagé", "🌤️", "🌙"], [[2], "Quelques nuages", "⛅", "☁️"], [[3], "Couvert", "☁️", "☁️"],
-  [[45, 48], "Brouillard", "🌫️", "🌫️"], [[51, 53, 55, 56, 57], "Bruine", "🌦️", "🌧️"], [[61, 63, 65, 66, 67], "Pluie", "🌧️", "🌧️"],
-  [[71, 73, 75, 77, 85, 86], "Neige", "🌨️", "🌨️"], [[80, 81, 82], "Averses", "🌦️", "🌧️"], [[95, 96, 99], "Orage", "⛈️", "⛈️"]];
-export const wmo = (code, day = true) => { const w = WMO.find(([c]) => c.includes(code)) || WMO[2]; return { label: w[1], ic: day ? w[2] : w[3] }; };
-let wxLoading = false;
-export function getWeather() {
-  const c = store.get("wx", null);
-  const fresh = c && Date.now() - c.at < 30 * 60e3;
-  if (!fresh && !wxLoading && typeof fetch !== "undefined") {
-    wxLoading = true;
-    fetch("https://api.open-meteo.com/v1/forecast?latitude=-31.93&longitude=115.89&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min&timezone=Australia%2FPerth&forecast_days=1")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (j?.current) store.set("wx", { at: Date.now(), t: j.current.temperature_2m, code: j.current.weather_code, day: !!j.current.is_day, max: j.daily?.temperature_2m_max?.[0], min: j.daily?.temperature_2m_min?.[0] });
-      })
-      .catch(() => {})
-      .finally(() => { wxLoading = false; });
-  }
-  return c;
-}
 
 
 // ═════════════════════════════════════════════════════════════
@@ -1162,4 +1142,105 @@ export async function saveBackupFile() {
   setTimeout(() => URL.revokeObjectURL(url), 4000);
   store.set("lastBackup", Date.now());
   return "downloaded";
+}
+
+// ═════════════════════════════════════════════════════════════
+// v6 — Rituels du jour (lumière, créatine, eau, minoxidil, posture…)
+// Ils sont rangés dans la journée, comme avant : day.h[id] (et day.water pour l'eau)
+// ═════════════════════════════════════════════════════════════
+export const RITUALS = [
+  { id: "light", label: "Lumière", ic: "sun", hint: "10 min dehors le matin", color: "#FFC15A" },
+  { id: "creatine", label: "Créatine", ic: "pill", hint: "5 g par jour", color: "#3ED2F2" },
+  { id: "water", label: "Eau", ic: "drop", hint: "Touche pour +0,5 L", color: "#4FB6FF" },
+  { id: "minox", label: "Minoxidil", ic: "dropper", hint: "Barbe et moustache", color: "#C9A5FF" },
+  { id: "posture", label: "Posture", ic: "posture", hint: "Menton, pecs, mur : 5 min", color: "#5BE7A9" },
+  { id: "spf", label: "SPF 50", ic: "shield", hint: "Crème solaire le matin", color: "#FF9A55" },
+];
+export const activeRituals = (S) => {
+  const ids = Array.isArray(S.rituals) ? S.rituals : DEFAULT_RITUALS;
+  return RITUALS.filter((r) => ids.includes(r.id));
+};
+export function ritualDone(id, d, S) {
+  if (id === "water") return (d.water || 0) >= S.water;
+  if (id === "creatine") return creatineDone(d);
+  return !!d.h[id];
+}
+/** Jours d'affilée (aujourd'hui compte s'il est fait, sinon on part d'hier) */
+export function ritualStreak(id, k, S) {
+  let kk = k, s = 0;
+  if (!ritualDone(id, getDay(kk), S)) kk = addDays(kk, -1);
+  while (s < 400 && ritualDone(id, getDay(kk), S)) { s++; kk = addDays(kk, -1); }
+  return s;
+}
+
+// ═════════════════════════════════════════════════════════════
+// v6 — La semaine en matrice (lundi → dimanche)
+// ═════════════════════════════════════════════════════════════
+export function weekMatrix(k, S) {
+  const ws = weekStartKey(k);
+  const rit = activeRituals(S);
+  const trainedDays = new Set(getWorkouts().map((w) => logicalKey(new Date(w.date), S.dayStart)));
+  return Array.from({ length: 7 }, (_, i) => {
+    const kk = addDays(ws, i), d = getDay(kk), t = dayTot(d), h = daySleepH(d);
+    const fed = hasFood(d);
+    return {
+      k: kk, future: kk > k, today: kk === k,
+      kcal: fed ? t.k / S.kcal : null,
+      prot: fed && d.entries.length ? t.p / S.prot : null,
+      sleep: h != null ? h / S.sleep : null,
+      train: trainedDays.has(kk) ? 1 : null,
+      rit: rit.length && dayHasData(d) ? rit.filter((r) => ritualDone(r.id, d, S)).length / rit.length : null,
+    };
+  });
+}
+
+// ═════════════════════════════════════════════════════════════
+// v6 — Trajectoire du poids : rythme et prochain palier
+// ═════════════════════════════════════════════════════════════
+export function weightTrajectory(k, S) {
+  const list = weightList();
+  if (!list.length) return null;
+  const latest = list[list.length - 1], first = list[0];
+  const rate = weeklyRate(list, k);
+  let milestone = null, goalAt = null;
+  if (rate != null && rate > 0.05) {
+    const next = Math.min(S.goalW, Math.ceil((latest[1] + 0.3) / 5) * 5);
+    const weeks = (next - latest[1]) / rate;
+    if (weeks > 0 && weeks < 156) milestone = { w: next, k: addDays(latest[0], Math.round(weeks * 7)) };
+    const gw = (S.goalW - latest[1]) / rate;
+    if (gw > 0 && gw < 260) goalAt = addDays(latest[0], Math.round(gw * 7));
+  }
+  return { list, latest, first, rate, milestone, goalAt };
+}
+/** Prochain jour de pesée (aujourd'hui si pas encore pesé) */
+export function nextWeighK(k, S) {
+  let delta = (S.weighDay - keyToDate(k).getDay() + 7) % 7;
+  if (delta === 0 && getWeights()[k] != null) delta = 7;
+  return addDays(k, delta);
+}
+
+// ═════════════════════════════════════════════════════════════
+// v6 — Le cadran : la journée sur 24 h (sommeil, repas, séance, coucher)
+// ═════════════════════════════════════════════════════════════
+const clockMin = (date) => { const x = new Date(date); return x.getHours() * 60 + x.getMinutes(); };
+export function dialData(k, now, S) {
+  const d = getDay(k), t = dayTot(d);
+  const night = store.get("night", null);
+  const b = keyToDate(k);
+  const sleep = d.sleep?.bed && d.sleep?.wake ? { from: clockMin(d.sleep.bed), to: clockMin(d.sleep.wake) } : null;
+  const meals = d.entries.map((e) => ({ at: minutesOf(e.t), k: entryTot(e).k, label: e.label, t: e.t }));
+  const tr = trainingStatus(k);
+  const train = tr.todayW ? { from: clockMin(tr.todayW.date), len: 75, session: tr.todayW.session } : null;
+  const bt = bedTarget(k);
+  const bed = (bt.min + 1080) % 1440;
+  const planned = plannedMeals(k).filter((m) => !m.done).map((m) => ({ at: minutesOf(m.time), k: m.kcal, label: m.label }));
+  const wakeAt = d.sleep?.wake ? clockMin(d.sleep.wake) : null;
+  const p = pace(k, now, S);
+  return {
+    t, meals, sleep, train, bed, bedPlan: bt.plan, planned, wakeAt, now: clockMin(now),
+    night: night ? { from: clockMin(night.bed), bed: night.bed } : null,
+    expected: t.k < S.kcal ? p.expected : null, frac: p.frac,
+    legacy: !d.entries.length && d.legacy?.kcal ? d.legacy.kcal : 0,
+    base: b,
+  };
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import * as L from "./lib.js";
 import { Icon, Confetti, buzz } from "./ui.jsx";
-import { Home } from "./home.jsx";
+import { Home, greeting } from "./home.jsx";
 import { Food, AddFood, Foods } from "./food.jsx";
 import { Sport, HevyImport, ProgramEdit } from "./sport.jsx";
 import { Progress } from "./progress.jsx";
@@ -114,11 +114,13 @@ function App() {
       <div className="ambient" aria-hidden="true"><i className="b1" /><i className="b2" /><i className="b3" /><i className="b4" /></div>
       <header className={"top" + (tab === "home" ? " home" : "")}>
         <div>
-          {tab === "home" ? <div className="brand"><span className="brand-dot" />Isma Daily</div> : <h1 className="top-t">{TITLES[tab]}</h1>}
-          {tab !== "home" && <div className="top-d">{L.cap(L.fmtDay(todayK))}</div>}
+          {tab === "home"
+            ? <h1 className="top-t hello">{greeting(nowD, L.store.get("night", null))}, Isma</h1>
+            : <h1 className="top-t">{TITLES[tab]}</h1>}
+          <div className="top-d">{L.cap(L.fmtDay(todayK))}</div>
         </div>
         <div className="top-r">
-          {streak > 0 && <span className="streak" title="Jours d'affilée à 90 % de ton objectif calories">🔥 {streak}</span>}
+          {streak > 0 && <span className="streak" title="Jours d'affilée à 90 % de ton objectif calories" aria-label={`${streak} jours d'affilée à 90 % de tes calories`}><Icon n="flame" size={15} sw={2} />{streak}</span>}
           <button className="round-btn" onClick={() => setSheet({ type: "coach" })} aria-label="Coach"><Icon n="chat" size={20} /></button>
           <button className="round-btn" onClick={() => setSheet({ type: "settings" })} aria-label="Réglages"><Icon n="sliders" size={20} /></button>
         </div>

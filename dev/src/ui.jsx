@@ -28,6 +28,18 @@ const P = {
   book: <path d="M5 4.5h11a3 3 0 0 1 3 3v12H8a3 3 0 0 1-3-3Zm0 12a3 3 0 0 1 3-3h11" />,
   home: <><path d="M3.5 11 12 4l8.5 7" /><path d="M6 9.5V20h12V9.5" /><path d="M10 20v-5h4v5" /></>,
   scale: <><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8.5 10a3.5 3.5 0 0 1 7 0" /><path d="m12 10 1.4-1.8" /></>,
+  sun: <><circle cx="12" cy="12" r="3.8" /><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" /></>,
+  moon: <path d="M19.5 14.2A7.8 7.8 0 1 1 9.8 4.5a6.3 6.3 0 0 0 9.7 9.7Z" />,
+  drop: <path d="M12 3.3c3.3 4.2 6 7.3 6 10.6a6 6 0 0 1-12 0c0-3.3 2.7-6.4 6-10.6Z" />,
+  pill: <><rect x="3.2" y="8.6" width="17.6" height="6.8" rx="3.4" transform="rotate(-35 12 12)" /><path d="m9.2 8 5.6 8" /></>,
+  dropper: <><path d="m14.2 5.6 4.2 4.2" /><path d="M16.3 7.7 8.6 15.4l-2.9.8.8-2.9 7.7-7.7" /><path d="m15.4 4.4 1-1a2 2 0 0 1 2.9 0l1.3 1.3a2 2 0 0 1 0 2.9l-1 1" /><path d="M4.6 18.4c.9 1 1.3 1.7 1.3 2.2a1.3 1.3 0 0 1-2.6 0c0-.5.4-1.2 1.3-2.2Z" /></>,
+  posture: <><circle cx="12" cy="4.6" r="2" /><path d="M12 7.6v7.2M7.5 10.2h9M12 14.8l-2.6 5.6M12 14.8l2.6 5.6" /></>,
+  shield: <><path d="M12 3.4 19 6v5.6c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V6Z" /><path d="M12 9v5M9.5 11.5h5" /></>,
+  flame: <path d="M12 21.2a6.2 6.2 0 0 0 6.2-6.2c0-3.7-2.6-5.5-3.6-9.5-2.1 1.6-3.1 3.6-3.1 5.9-1-.7-1.6-1.8-1.7-3C7.6 10 5.8 12.4 5.8 15a6.2 6.2 0 0 0 6.2 6.2Z" />,
+  spark: <><path d="M12 3.5 13.9 10l6.6 2-6.6 2L12 20.5 10.1 14l-6.6-2 6.6-2Z" /></>,
+  fork: <><path d="M7 3.5v7.2a2.3 2.3 0 0 0 4.6 0V3.5M9.3 3.5v17" /><path d="M16.8 20.5V3.5c-2 1.2-3 3.6-3 6.7v3.3h3" /></>,
+  bolt: <path d="M13.2 3 5.5 13.4h5.6L10.4 21l8.1-10.6h-5.7Z" />,
+  undo: <path d="M9 7.5 4.5 12 9 16.5M5 12h9.5a5 5 0 0 1 0 10H12" />,
 };
 export function Icon({ n, size = 22, sw = 1.8, style }) {
   return (
@@ -60,46 +72,9 @@ export function useCount(target, dur = 750, from0 = true) {
   }, [target]);
   return v;
 }
-export function Count({ v, dec = 0 }) {
-  const x = useCount(v);
+export function Count({ v, dec = 0, from0 = true }) {
+  const x = useCount(v, 750, from0);
   return <>{dec ? L.fdec(x, dec) : L.fint(x)}</>;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Le viseur : 3 anneaux (calories, protéines, sommeil)
-// ─────────────────────────────────────────────────────────────
-const RINGS = [
-  { key: "kcal", r: 108, color: "var(--sun)" },
-  { key: "prot", r: 87, color: "var(--flesh)" },
-  { key: "sleep", r: 66, color: "var(--moon)" },
-];
-export function Reticle({ values, children, size = 248, onRing }) {
-  const [shown, setShown] = useState(reduceMotion() ? values : { kcal: 0, prot: 0, sleep: 0 });
-  useEffect(() => { const id = requestAnimationFrame(() => setShown(values)); return () => cancelAnimationFrame(id); }, [values.kcal, values.prot, values.sleep]);
-  const all = values.kcal >= 1 && values.prot >= 1 && values.sleep >= 1;
-  const C = 130, sw = 15;
-  return (
-    <div className={"reticle" + (all ? " bull" : "")} style={{ width: size, height: size }}>
-      <svg viewBox="0 0 260 260" width={size} height={size} role="img" aria-label={`Calories ${Math.round(values.kcal * 100)} %, protéines ${Math.round(values.prot * 100)} %, sommeil ${Math.round(values.sleep * 100)} %`}>
-        <circle cx={C} cy={C} r="124" fill="none" stroke="var(--line-2)" strokeWidth="1" strokeDasharray="2 6" />
-        {[0, 90, 180, 270].map((a) => (
-          <line key={a} x1={C} y1="0" x2={C} y2="12" stroke="var(--mu)" strokeWidth="1.5" strokeLinecap="round" transform={`rotate(${a} ${C} ${C})`} />
-        ))}
-        {RINGS.map(({ key, r, color }) => {
-          const c = 2 * Math.PI * r, v = Math.min(1, shown[key] || 0);
-          return (
-            <g key={key} onClick={onRing ? () => onRing(key) : undefined} style={{ cursor: onRing ? "pointer" : "default" }}>
-              <circle cx={C} cy={C} r={r} fill="none" stroke={color} strokeOpacity=".14" strokeWidth={sw} />
-              <circle cx={C} cy={C} r={r} fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round"
-                strokeDasharray={c} strokeDashoffset={c * (1 - v)} transform={`rotate(-90 ${C} ${C})`}
-                className={"ring-arc" + ((values[key] || 0) >= 1 ? " full" : "")} style={{ "--glow": color }} />
-            </g>
-          );
-        })}
-      </svg>
-      <div className="reticle-center">{children}</div>
-    </div>
-  );
 }
 
 /** Mini viseur pour la semaine */

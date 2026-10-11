@@ -143,6 +143,26 @@ function NumField({ S, k, label, unit }) {
     </label>
   );
 }
+function Rituals({ S }) {
+  const ids = L.activeRituals(S).map((r) => r.id);
+  const toggle = (id) => {
+    const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+    L.setSettings({ rituals: L.RITUALS.map((r) => r.id).filter((x) => next.includes(x)) });
+  };
+  return (
+    <div className="rt-list">
+      {L.RITUALS.map((r) => {
+        const on = ids.includes(r.id);
+        return (
+          <button key={r.id} className={"toggle rt" + (on ? " on" : "")} onClick={() => toggle(r.id)} aria-pressed={on}>
+            <span className="rt-l" style={{ "--rc": r.color }}><span className="rt-ic"><Icon n={r.ic} size={18} sw={1.9} /></span><span className="rt-tx">{r.label}<small>{r.hint}</small></span></span>
+            <span className="sw"><i /></span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 export function Settings({ ctx }) {
   const S = ctx.S;
   const cur = L.getApiKey();
@@ -208,6 +228,10 @@ export function Settings({ ctx }) {
         </select>
       </label>
 
+      <div className="sub-h mt18">Rituels de l'accueil</div>
+      <p className="hint mb10">Garde ceux que tu fais chaque jour. Chacun compte sa série de jours d'affilée.</p>
+      <Rituals S={S} />
+
       <div className="sub-h mt18">Sauvegarde</div>
       <p className="hint mb10">Tes données restent sur ce téléphone. Copie une sauvegarde de temps en temps (sans la clé API).</p>
       <button className="cta sun full" onClick={saveFile}>Enregistrer une sauvegarde (Fichiers, iCloud)</button>
@@ -219,7 +243,7 @@ export function Settings({ ctx }) {
       <input ref={fileRef} type="file" accept="application/json,.json,text/plain" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; try { setRestore(await f.text()); setMsg("Fichier chargé : touche « Restaurer cette sauvegarde »."); } catch { setMsg("Fichier illisible."); } }} />
       <textarea className="inp mt10" style={{ minHeight: 70 }} value={restore} onChange={(e) => setRestore(e.target.value)} placeholder="Pour restaurer : colle une sauvegarde ici" />
       {restore.trim() && <button className="cta ghost full mt8" onClick={doRestore}>Restaurer cette sauvegarde</button>}
-      <p className="hint center mt18">Isma Daily, version 5 · octobre 2026</p>
+      <p className="hint center mt18">Isma Daily, version 6, octobre 2026</p>
     </Sheet>
   );
 }
