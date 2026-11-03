@@ -5,7 +5,9 @@ import { BASE_FOODS, PROGRAM, SEED_WORKOUTS, SEED_FAVS } from "./data.js";
 // ═════════════════════════════════════════════════════════════
 const PFX = "t2:";
 const listeners = new Set();
-const emit = () => listeners.forEach((fn) => fn());
+let REV = 0; // change à chaque écriture : sert à vider les caches du jeu
+export const rev = () => REV;
+const emit = () => { REV++; listeners.forEach((fn) => fn()); };
 const readRaw = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const writeRaw = (k, v) => { try { localStorage.setItem(k, v); return true; } catch (e) { console.warn("Stockage plein ou bloqué", e); return false; } };
 
@@ -1096,7 +1098,7 @@ const AGENT_SCHEMA = {
 };
 
 /** Coach-agent : répond et, si ta journée change, renvoie un nouveau plan */
-export async function aiAgent(history, todayK) {
+export async function aiAgent(history, todayK, gameCtx = "") {
   const S = getSettings();
   const now = new Date();
   const t = dayTot(getDay(todayK));
@@ -1113,6 +1115,7 @@ TON RÔLE : il te dit ce qui change dans sa journée (sortie, service au travail
 - summary : une ligne qui résume le plan (ex. "Sortie ce soir : dîner à 19 h 30, coucher vers 3 h, séance demain").
 S'il pose juste une question sans changement de journée : update_plan = false, et plan rempli à vide (summary "", bedtime "", training "unchanged", meals []).
 reply : 3 à 6 lignes en français familier, tutoiement, direct, sans titres ni tableaux. Explique le nouveau plan simplement. Si quelque chose ressemble à un souci de santé, conseille-lui d'en parler à un médecin.
+Son tracker est un univers League of Legends : calories = gold (le farm), sommeil = PV (le recall), créatine = item à stacks qui monte la mana max, séances = sorts avec temps de recharge, poids = rang classé. Quand ça aide à comprendre, glisse une analogie LoL courte, comme une vidéo qu'il a aimée, sans en faire trop et sans jamais remplacer les vrais chiffres.${gameCtx ? `\nSA PARTIE EN COURS : ${gameCtx}` : ""}
 
 DONNÉES DE SON APP (à jour) :
 ${buildContext(todayK)}
@@ -1161,9 +1164,12 @@ export const RITUALS = [
   { id: "posture", label: "Posture", ic: "posture", hint: "La routine de 5 min, dans Sport", color: "#5BE7A9" },
   { id: "spf", label: "SPF 50", ic: "shield", hint: "Crème solaire le matin", color: "#FF9A55" },
 ];
+/** Tes items perso (forge) : { id: "u_…", label, ic, color, hint } */
+export const customItems = (S) => (Array.isArray(S.customItems) ? S.customItems.filter((x) => x && x.id && x.label) : []);
+export const allRituals = (S) => [...RITUALS, ...customItems(S)];
 export const activeRituals = (S) => {
   const ids = Array.isArray(S.rituals) ? S.rituals : DEFAULT_RITUALS;
-  return RITUALS.filter((r) => ids.includes(r.id));
+  return allRituals(S).filter((r) => ids.includes(r.id));
 };
 export function ritualDone(id, d, S) {
   if (id === "water") return (d.water || 0) >= S.water;

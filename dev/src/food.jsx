@@ -1,7 +1,10 @@
 import React, { useState, useRef } from "react";
 import * as L from "./lib.js";
+import * as G from "./game.js";
 import * as A from "./actions.js";
+import { sfx } from "./sfx.js";
 import { Sheet, Icon, Spinner, Empty, GramInput, PaceBar, Count, buzz } from "./ui.jsx";
+import { Coin } from "./hud.jsx";
 
 const { fint, fdec } = L;
 
@@ -36,29 +39,66 @@ export function Food({ ctx, k, setK }) {
         <button className="round-btn" disabled={isToday} onClick={() => setK(L.addDays(k, 1))} aria-label="Jour suivant"><Icon n="right" /></button>
       </div>
 
-      <section className="panel">
-        <PaceBar label="Calories" value={t.k} goal={S.kcal} expected={p && t.k < S.kcal ? p.expected : null} color="var(--sun)" unit="kcal" />
+      <section className="panel farm-panel">
+        <PaceBar label="Gold (calories)" value={t.k} goal={S.kcal} expected={p && t.k < S.kcal ? p.expected : null} color="var(--goldbar)" unit="kcal" />
         <PaceBar label="Protéines" value={t.p} goal={S.prot} color="var(--flesh)" unit="g" />
         <div className="macro-row">
           <span>Glucides <b>{fint(t.c)} g</b></span>
           <span>Lipides <b>{fint(t.f)} g</b></span>
-          {p && t.k < S.kcal && <span className="muted">Le trait blanc : où tu devrais en être</span>}
+          <span>CS <b>{d.entries.length}</b></span>
+          {p && t.k < S.kcal && <span className="muted">Le trait clair : où tu devrais en être</span>}
         </div>
         {d.legacy && !d.entries.length && <div className="hint">Journée notée avec l'ancienne version : {fint(d.legacy.kcal)} kcal au total.</div>}
       </section>
+
+      {isToday && <BuildReco ctx={ctx} k={k} />}
 
       {d.entries.length > 0 ? (
         <div className="timeline">
           {d.entries.map((e) => <EntryRow key={e.id} e={e} k={k} ctx={ctx} />)}
         </div>
       ) : (
-        <Empty title="Rien de noté pour ce jour" text="Ajoute ton premier repas avec le bouton +." />
+        <Empty title="Aucun CS pour ce jour" text="Ajoute ton premier repas avec le bouton +." />
       )}
 
       <button className="wide-btn" onClick={() => ctx.open({ type: "add", k })}><Icon n="plus" size={18} /> Ajouter un repas</button>
-      <button className="wide-btn ghost" onClick={() => ctx.open({ type: "foods" })}><Icon n="book" size={18} /> Mes aliments</button>
+      <DexButton ctx={ctx} k={k} />
       <p className="hint center">Glisse vers la droite ou la gauche pour changer de jour.</p>
     </div>
+  );
+}
+
+/** Build recommandé : les repas qui comblent ce qu'il te manque */
+function BuildReco({ ctx, k }) {
+  const list = G.buildReco(k, new Date(ctx.now));
+  if (!list.length) return null;
+  return (
+    <section className="reco" aria-label="Build recommandé">
+      <div className="sec-h"><h2>Build recommandé</h2><span className="sec-r">pour ce qu'il te manque</span></div>
+      <div className="reco-row">
+        {list.map((c, i) => {
+          const r = G.rarity(c.t);
+          return (
+            <button key={i} className={"reco-c r-" + r} onClick={() => A.addItems(ctx, k, c.items, c.name)} aria-label={`Ajouter ${c.name}, ${fint(c.t.k)} kcal`}>
+              <span className="reco-n">{c.name}<span className="reco-r">{G.RARITY[r].n}</span></span>
+              <span className="reco-k"><Coin size={13} />{fint(c.t.k)}<small>{fint(c.t.p)} g prot</small></span>
+              <span className="reco-i">{c.items.filter((x) => x.fid !== "creatine" && x.fid !== "eau").map((x) => x.name.replace(/ \(.*\)/, "")).slice(0, 4).join(", ")}</span>
+              <span className="reco-p"><Icon n="plus" size={15} sw={2.6} /></span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+function DexButton({ ctx, k }) {
+  const dx = G.dex();
+  const v = G.weekVariety(k);
+  return (
+    <button className="wide-btn ghost dexbtn" onClick={() => ctx.open({ type: "foods" })}>
+      <Icon n="book" size={18} /> Alimentdex <b>{dx.n}</b><span className="muted">sur {dx.total}</span>
+      <span className="dex-v">{v} aliments cette semaine</span>
+    </button>
   );
 }
 
@@ -70,17 +110,18 @@ function EntryRow({ e, k, ctx }) {
     const name = window.prompt("Nom du favori :", e.label);
     if (name && name.trim()) { const undo = L.snapKey("favs"); L.saveFav(name.trim(), e.items); ctx.say("Ajouté à tes favoris ⭐", { undo }); }
   };
+  const rr = G.rarity(tot);
   return (
-    <div className={"tl-row" + (open ? " open" : "")}>
+    <div className={"tl-row r-" + rr + (open ? " open" : "")}>
       <div className="tl-time">{e.t}</div>
       <div className="tl-dot" />
       <div className="tl-card">
         <button className="tl-head" onClick={() => setOpen(!open)} aria-expanded={open}>
           <div className="tl-main">
-            <div className="tl-title">{e.label}</div>
+            <div className="tl-title">{e.label}<span className="tl-rar">{G.RARITY[rr].n}</span></div>
             <div className="tl-items">{e.items.map((i) => i.name.replace(/ \(.*\)/, "")).join(", ")}</div>
           </div>
-          <div className="tl-kcal"><b>{fint(tot.k)}</b><span>{fint(tot.p)} g prot</span></div>
+          <div className="tl-kcal"><b><Coin size={13} />{fint(tot.k)}</b><span>{fint(tot.p)} g prot</span></div>
         </button>
         {open && (
           <div className="tl-body">
@@ -199,7 +240,14 @@ export function AddFood({ ctx, k, mode: initMode, entryId }) {
   const save = () => {
     if (!canSave) return;
     if (entryId) { const undo = L.snapDay(k); L.appendToEntry(k, entryId, valid); ctx.say(`Ajouté : ${fint(tot.k)} kcal`, { undo }); }
-    else { const undo = L.snapDay(k); L.addEntry(k, valid, label.trim() || L.mealLabel(), time); buzz(10); ctx.say(`Ajouté : ${fint(tot.k)} kcal · ${fint(tot.p)} g de protéines`, { undo }); }
+    else {
+      const undo = L.snapDay(k);
+      const fresh = G.newFoods(valid);
+      L.addEntry(k, valid, label.trim() || L.mealLabel(), time);
+      buzz(10); sfx.gold();
+      ctx.say(`+${fint(tot.k)} gold, ${fint(tot.p)} g de protéines`, { undo });
+      if (fresh.length && ctx.push) { const dx = G.dex(); ctx.push({ kicker: "Alimentdex", t: "Nouvel aliment", s: `${fresh.map((f) => f.name.replace(/ \(.*\)/, "")).slice(0, 2).join(", ")} : ${dx.n} sur ${dx.total} découverts`, tone: "cyan" }); }
+    }
     ctx.close();
   };
 
@@ -218,7 +266,7 @@ export function AddFood({ ctx, k, mode: initMode, entryId }) {
               <input className="inp" type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Heure" />
             </div>
           )}
-          <div className="total-line"><span className="muted">{missing ? "Indique les quantités en rouge" : `${fint(tot.p)} g de protéines`}</span><b>{fint(tot.k)} kcal</b></div>
+          <div className="total-line"><span className="muted">{missing ? "Indique les quantités en rouge" : `${fint(tot.p)} g de protéines, rareté ${G.RARITY[G.rarity(tot)].n.toLowerCase()}`}</span><b><Coin size={18} />+{fint(tot.k)}</b></div>
           <button className="cta sun full" disabled={!canSave} onClick={save}>Ajouter au journal</button>
         </>
       )}>
@@ -245,7 +293,7 @@ export function AddFood({ ctx, k, mode: initMode, entryId }) {
                     <div key={f.id} className="fav">
                       <button className="fav-main" onClick={() => oneTap(f.items, f.name)}>
                         <span className="fav-n">{f.name}</span>
-                        <span className="fav-k"><b>{fint(t.k)}</b> kcal · {fint(t.p)} g</span>
+                        <span className="fav-k"><b>{fint(t.k)}</b> gold, {fint(t.p)} g</span>
                       </button>
                       <button className="fav-adj" onClick={() => adjust(f.items, f.name)}>Ajuster</button>
                     </div>
@@ -359,6 +407,7 @@ export function Foods({ ctx }) {
   const scanRef = useRef();
   const hasKey = !!L.getApiKey();
   const list = L.searchFoods(q).slice(0, 120);
+  const dx = G.dex();
 
   const scan = async (ev) => {
     const file = ev.target.files?.[0];
@@ -409,7 +458,12 @@ export function Foods({ ctx }) {
     );
   }
   return (
-    <Sheet title="Mes aliments" onClose={ctx.close} tall>
+    <Sheet title="Alimentdex" onClose={ctx.close} tall>
+      <div className="dex-h">
+        <span className="dex-n"><b>{dx.n}</b> sur {dx.total} découverts</span>
+        <span className="dex-bar"><i style={{ width: `${Math.min(100, (dx.n / Math.max(1, dx.total)) * 100)}%` }} /></span>
+        <span className="muted small">Un aliment se découvre la première fois que tu le manges. Varier, c'est aussi mieux farmer.</span>
+      </div>
       <div className="cta-row mb10">
         <button className="cta ghost" onClick={() => setEdit({ n: q, k: "", p: "", c: "", f: "", ug: "", un: "", src: "manuel" })}>＋ Nouveau</button>
         <button className="cta sun" disabled={!hasKey || busy} onClick={() => scanRef.current?.click()}>{busy ? <><Spinner /> Lecture…</> : "Scanner une étiquette"}</button>
@@ -421,7 +475,7 @@ export function Foods({ ctx }) {
       <div className="mt6">
         {list.map((f) => (
           <button key={f.id} className="list-row" onClick={() => startEdit(f)}>
-            <span><span className="nm">{f.n}</span>{f.custom && <span className={"tag" + (f.src === "ia" ? " ia" : "")}>{f.src === "ia" ? "appris" : "perso"}</span>}
+            <span className={dx.seen.has(f.id) ? "" : "undisc"}><span className="nm">{f.n}</span>{f.custom && <span className={"tag" + (f.src === "ia" ? " ia" : "")}>{f.src === "ia" ? "appris" : "perso"}</span>}{!dx.seen.has(f.id) && f.id !== "creatine" && f.id !== "eau" && f.id !== "cafe" && <span className="tag">pas encore goûté</span>}
               <div className="item-sub">{fint(f.k)} kcal · {fdec(f.p)} g de protéines / 100 g{f.u ? ` · 1 ${f.u.n} = ${f.u.g} g` : ""}</div></span>
             <Icon n="right" size={18} style={{ color: "var(--dim)" }} />
           </button>

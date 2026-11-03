@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import * as L from "./lib.js";
+import * as G from "./game.js";
+import { PATCH } from "./content.js";
 import { Sheet, Icon, buzz } from "./ui.jsx";
+import { ItemArt } from "./hud.jsx";
 
 const { fH } = L;
 
@@ -85,7 +88,7 @@ export function Coach({ ctx, ask }) {
     L.store.set("chat", nc.slice(-40));
     setInp(""); setBusy(true);
     try {
-      const res = await L.aiAgent(cleanHistory(nc), k);
+      const res = await L.aiAgent(cleanHistory(nc), k, G.coachContext(k));
       const undo = L.applyAgentPlan(k, res, m);
       const msg = { role: "assistant", content: res.reply || "…" };
       if (undo) msg.plan = { k, summary: res.plan.summary || "Journée réorganisée" };
@@ -145,22 +148,107 @@ function NumField({ S, k, label, unit }) {
 }
 function Rituals({ S }) {
   const ids = L.activeRituals(S).map((r) => r.id);
+  const all = L.allRituals(S);
   const toggle = (id) => {
     const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
-    L.setSettings({ rituals: L.RITUALS.map((r) => r.id).filter((x) => next.includes(x)) });
+    L.setSettings({ rituals: all.map((r) => r.id).filter((x) => next.includes(x)) });
   };
   return (
     <div className="rt-list">
-      {L.RITUALS.map((r) => {
+      {all.map((r) => {
         const on = ids.includes(r.id);
         return (
           <button key={r.id} className={"toggle rt" + (on ? " on" : "")} onClick={() => toggle(r.id)} aria-pressed={on}>
-            <span className="rt-l" style={{ "--rc": r.color }}><span className="rt-ic"><Icon n={r.ic} size={18} sw={1.9} /></span><span className="rt-tx">{r.label}<small>{r.hint}</small></span></span>
+            <span className="rt-l" style={{ "--rc": r.color }}><span className="rt-ic"><ItemArt id={r.art || r.id} color={r.color} size={30} letter={r.label} /></span><span className="rt-tx">{r.label}<small>{r.hint}</small></span></span>
             <span className="sw"><i /></span>
           </button>
         );
       })}
     </div>
+  );
+}
+
+/** La forge : crée tes propres items à stacks */
+const FORGE_COLORS = ["#C8AA6E", "#0AC8B9", "#4FB6FF", "#B97CFF", "#3DD68C", "#FF8A3D", "#E84057"];
+function Forge({ S, say }) {
+  const [name, setName] = useState("");
+  const [hint, setHint] = useState("");
+  const [color, setColor] = useState(FORGE_COLORS[1]);
+  const mine = L.customItems(S);
+  const create = () => {
+    const n = name.trim();
+    if (!n) return;
+    const it = { id: "u_" + L.uid(), label: n.slice(0, 18), hint: hint.trim().slice(0, 60) || "Ton item perso", color, ic: "rune", art: "rune" };
+    const ids = Array.isArray(S.rituals) ? S.rituals : L.DEFAULT_RITUALS;
+    L.setSettings({ customItems: [...mine, it], rituals: [...ids, it.id] });
+    setName(""); setHint("");
+    say(`Item forgé : ${it.label}`);
+  };
+  const remove = (it) => {
+    if (!window.confirm(`Détruire l'item « ${it.label} » ? Ses jours déjà cochés restent dans ton historique.`)) return;
+    const ids = (Array.isArray(S.rituals) ? S.rituals : L.DEFAULT_RITUALS).filter((x) => x !== it.id);
+    L.setSettings({ customItems: mine.filter((x) => x.id !== it.id), rituals: ids });
+  };
+  return (
+    <div className="forge">
+      {mine.map((it) => (
+        <div key={it.id} className="forge-row">
+          <ItemArt id="rune" color={it.color} size={30} letter={it.label} />
+          <span className="rt-tx">{it.label}<small>{it.hint}</small></span>
+          <button className="link small" onClick={() => remove(it)}>Détruire</button>
+        </div>
+      ))}
+      <div className="grid2">
+        <label className="field"><span>Nom de l'item</span><input className="inp" value={name} maxLength={18} onChange={(e) => setName(e.target.value)} placeholder="Anglais" /></label>
+        <label className="field"><span>Ce qu'il faut faire</span><input className="inp" value={hint} maxLength={60} onChange={(e) => setHint(e.target.value)} placeholder="15 min par jour" /></label>
+      </div>
+      <div className="forge-c" role="radiogroup" aria-label="Couleur de l'item">
+        {FORGE_COLORS.map((c) => <button key={c} role="radio" aria-checked={color === c} className={color === c ? "on" : ""} style={{ "--c": c }} onClick={() => setColor(c)} aria-label={`Couleur ${c}`} />)}
+        <span className="forge-prev"><ItemArt id="rune" color={color} size={34} letter={name || "?"} /></span>
+      </div>
+      <button className="cta ghost full" disabled={!name.trim()} onClick={create}>Forger l'item</button>
+    </div>
+  );
+}
+
+function Skins({ S, todayK, say }) {
+  const acc = G.account(todayK), rk = G.rank();
+  const cur = S.skin || "hextech";
+  return (
+    <div className="skins">
+      {G.SKINS.map((s) => {
+        const ok = G.skinOk(s, acc, rk);
+        return (
+          <button key={s.id} className={"skin s-" + s.id + (cur === s.id ? " on" : "") + (ok ? "" : " locked")} disabled={!ok}
+            onClick={() => { L.setSettings({ skin: s.id }); say(`Skin : ${s.n}`); }} aria-pressed={cur === s.id}>
+            <span className="skin-sw" aria-hidden="true"><i /><i /><i /></span>
+            <span className="skin-n">{s.n}</span>
+            <span className="skin-d">{ok ? s.d : <><Icon n="lock" size={11} sw={2.4} /> {G.skinReq(s)}</>}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+function Toggle({ on, label, sub, onClick }) {
+  return (
+    <button className={"toggle rt" + (on ? " on" : "")} onClick={onClick} aria-pressed={on}>
+      <span className="rt-tx">{label}<small>{sub}</small></span>
+      <span className="sw"><i /></span>
+    </button>
+  );
+}
+function RankStart({ S }) {
+  const first = L.weightList()[0];
+  const [v, setV] = useState(Number.isFinite(S.rankStart) ? String(S.rankStart).replace(".", ",") : "");
+  return (
+    <label className="field"><span>Poids de départ du classement (Fer IV)</span>
+      <div className="gram wide">
+        <input inputMode="decimal" value={v} placeholder={first ? `${String(first[1]).replace(".", ",")}, ta première pesée` : "ta première pesée"} onChange={(e) => setV(e.target.value)}
+          onBlur={() => { const n = L.num(v); if (n != null && n > 20 && n < S.goalW) L.setSettings({ rankStart: n }); else { L.setSettings({ rankStart: null }); setV(""); } }} />
+        <span>kg</span>
+      </div>
+    </label>
   );
 }
 export function Settings({ ctx }) {
@@ -191,10 +279,24 @@ export function Settings({ ctx }) {
     catch (e) { setMsg(e.message || "Sauvegarde illisible."); }
   };
   const days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+  const [pseudo, setPseudo] = useState(S.pseudo || "Isma");
   return (
-    <Sheet title="Réglages" onClose={ctx.close} tall>
+    <Sheet title="Page de runes" onClose={ctx.close} tall>
       {msg && <div className="note">{msg}</div>}
-      <div className="sub-h">Clé API Claude</div>
+      <div className="sub-h">Ton invocateur</div>
+      <label className="field"><span>Pseudo</span>
+        <input className="inp" value={pseudo} maxLength={16} onChange={(e) => setPseudo(e.target.value)} onBlur={() => L.setSettings({ pseudo: pseudo.trim() || "Isma" })} />
+      </label>
+
+      <div className="sub-h mt18">Skins</div>
+      <Skins S={S} todayK={ctx.todayK} say={ctx.say} />
+
+      <div className="sub-h mt18">Ambiance</div>
+      <Toggle on={S.sfx !== false} label="Bruitages" sub="Gold, kills, niveaux. Muets si ton téléphone est en silencieux." onClick={() => L.setSettings({ sfx: S.sfx === false })} />
+      <Toggle on={!!S.voice} label="Annonceur vocal" sub="La voix du téléphone annonce les kills et les boss." onClick={() => L.setSettings({ voice: !S.voice })} />
+      <Toggle on={S.loading !== false} label="Écran de chargement" sub="Ton match du jour, une fois par jour." onClick={() => L.setSettings({ loading: S.loading === false })} />
+
+      <div className="sub-h mt18">Clé API Claude</div>
       <p className="hint mb10">Pour la photo, l'étiquette, les textes non reconnus et le coach. Tout le reste marche sans.</p>
       {cur && (
         <div className="row-between mb10">
@@ -214,7 +316,7 @@ export function Settings({ ctx }) {
         <NumField S={S} k="prot" label="Protéines par jour" unit="g" />
         <NumField S={S} k="sleep" label="Sommeil visé" unit="h" />
         <NumField S={S} k="water" label="Eau par jour" unit="L" />
-        <NumField S={S} k="goalW" label="Poids visé" unit="kg" />
+        <NumField S={S} k="goalW" label="Poids visé (Challenger)" unit="kg" />
         <NumField S={S} k="lat" label="Temps pour t'endormir" unit="min" />
       </div>
       <label className="field"><span>Jour de pesée</span>
@@ -228,9 +330,14 @@ export function Settings({ ctx }) {
         </select>
       </label>
 
-      <div className="sub-h mt18">Rituels de l'accueil</div>
-      <p className="hint mb10">Garde ceux que tu fais chaque jour. Chacun compte sa série de jours d'affilée.</p>
+      <RankStart S={S} />
+
+      <div className="sub-h mt18">Inventaire</div>
+      <p className="hint mb10">Les items que tu fais chaque jour. Chacun gagne 1 stack par jour fait et en perd 1 par jour raté.</p>
       <Rituals S={S} />
+      <div className="sub-h mt18">La forge</div>
+      <p className="hint mb10">Crée tes propres items à stacks : anglais, lecture, étirements…</p>
+      <Forge S={S} say={ctx.say} />
 
       <div className="sub-h mt18">Sauvegarde</div>
       <p className="hint mb10">Tes données restent sur ce téléphone. Copie une sauvegarde de temps en temps (sans la clé API).</p>
@@ -243,7 +350,11 @@ export function Settings({ ctx }) {
       <input ref={fileRef} type="file" accept="application/json,.json,text/plain" hidden onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; try { setRestore(await f.text()); setMsg("Fichier chargé : touche « Restaurer cette sauvegarde »."); } catch { setMsg("Fichier illisible."); } }} />
       <textarea className="inp mt10" style={{ minHeight: 70 }} value={restore} onChange={(e) => setRestore(e.target.value)} placeholder="Pour restaurer : colle une sauvegarde ici" />
       {restore.trim() && <button className="cta ghost full mt8" onClick={doRestore}>Restaurer cette sauvegarde</button>}
-      <p className="hint center mt18">Isma Daily, version 7, octobre 2026</p>
+      <div className="cta-row mt18">
+        <button className="cta ghost" onClick={() => ctx.open({ type: "patch" })}>Notes de patch</button>
+        <button className="cta ghost" onClick={() => ctx.open({ type: "codex" })}>Codex</button>
+      </div>
+      <p className="hint center mt18">Isma Daily, patch {PATCH.v} « {PATCH.n} », {PATCH.date}</p>
     </Sheet>
   );
 }
