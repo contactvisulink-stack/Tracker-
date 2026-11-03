@@ -646,3 +646,6 @@ button.sec-r.link { color: var(--b2); font-weight: 600; }
 .fab::before { background: linear-gradient(135deg, #FFFFFF 50%, var(--a1) 50%); }
 .fab-in::before { background: linear-gradient(135deg, color-mix(in srgb, var(--b2) 62%, #fff) 50%, var(--b2) 50%); }
 .nf-plus { background: linear-gradient(135deg, color-mix(in srgb, var(--pc) 55%, #fff) 50%, var(--pc) 50%); }
+/* Images peintes : elles remplissent leur médaillon */
+.islot-in img.painted { width: 92%; height: 92%; object-fit: contain; }
+img.painted { display: block; -webkit-user-drag: none; user-select: none; }

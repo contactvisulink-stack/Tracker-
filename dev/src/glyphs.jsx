@@ -4,8 +4,23 @@
 // aplats d'une seule couleur, facettes claires et sombres au lieu des dégradés,
 // aucun reflet brillant, aucun biseau. Tous les dessins sont originaux.
 // ═════════════════════════════════════════════════════════════
-import React, { useId } from "react";
+import React, { useId, useState } from "react";
 import * as G from "./game.js";
+
+// ── Images peintes (générées pour Isma, rangées dans /art) ──
+// Si une image manque ou ne charge pas, le dessin vectoriel prend le relais.
+export const PAINTED = {
+  items: ["creatine", "light", "minox", "posture", "water"],
+  kills: [],
+  ranks: [],
+  bosses: [],
+};
+function Painted({ src, size, className = "", fallback }) {
+  const [bad, setBad] = useState(false);
+  if (bad) return fallback;
+  return <img className={"painted " + className} src={src} width={size} height={size} alt="" draggable="false" decoding="async" onError={() => setBad(true)} />;
+}
+export const paintedSrc = (kind, id) => (PAINTED[kind] || []).includes(id) ? `art/${kind}/${id}.webp` : null;
 
 const f2 = (v) => +v.toFixed(2);
 const pts = (a) => a.map(([x, y]) => `${f2(x)},${f2(y)}`).join(" ");
@@ -281,11 +296,13 @@ export function ItemArt({ id, color = "#C8AA6E", size = 40, letter = "?" }) {
       </>
     ),
   };
-  return (
+  const svg = (
     <svg className="iart" width={size} height={size} viewBox="0 0 48 48" aria-hidden="true">
       {art[id] || art.rune}
     </svg>
   );
+  const src = paintedSrc("items", id);
+  return src ? <Painted src={src} size={size} className="iart" fallback={svg} /> : svg;
 }
 
 // ═════════════════════════════════════════════════════════════
