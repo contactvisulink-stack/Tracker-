@@ -3,7 +3,7 @@ import * as L from "./lib.js";
 import * as G from "./game.js";
 import * as A from "./actions.js";
 import { Icon, Count, reduceMotion } from "./ui.jsx";
-import { GBar, ItemSlot, Emblem, BossArt, Grade, KillDots, KillCard } from "./hud.jsx";
+import { GBar, ItemSlot, Emblem, BossArt, Grade, KillDots, KillCard, Glyph } from "./hud.jsx";
 import { PosterHome, PosterNight, pseudoOf } from "./posters.jsx";
 import { Deco, Orn, Torn, damask } from "./art.jsx";
 import { WATER } from "./gamesheets.jsx";
@@ -100,7 +100,7 @@ function NowCard({ ctx, d, night }) {
   return (
     <section className={`now ping-${PING[tone] || "farm"}` + (QUIET.has(main.id) ? " quiet" : "")}>
       <div className="now-h">
-        <span className="now-ic" aria-hidden="true"><Icon n={ACT_IC[main.id] || "spark"} size={19} sw={2} /></span>
+        <span className="now-ic" aria-hidden="true"><Glyph n={ACT_IC[main.id] || "spark"} size={19} fallback={<Icon n={ACT_IC[main.id] || "spark"} size={19} sw={2} />} /></span>
         <div className="now-tx">
           <h2 className="now-t">{main.title}</h2>
           {main.text && <p className="now-s">{main.text}</p>}

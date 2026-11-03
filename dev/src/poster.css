@@ -612,3 +612,37 @@ button.sec-r.link { color: var(--b2); font-weight: 600; }
   .bd-img, .main, .p-night .pn-moon, .ann, .lcard, .endg-in, .drips, .ph-chip.camp, .islot-pip { animation: none !important; }
   .ann .doodles path { animation: none; stroke-dashoffset: 0; }
 }
+
+/* ── Pictogrammes à plat (patch 8.1) ── */
+.glyph { display: block; flex-shrink: 0; overflow: visible; }
+.ico { flex-shrink: 0; }
+.ps-v .glyph { filter: drop-shadow(0 0 5px currentColor); }
+.ph-stat.hp .glyph { color: var(--c-hp); } .ph-stat.mana .glyph { color: var(--c-mana); } .ph-stat.streak .glyph { color: #FF9A4A; }
+.kcard-ic .glyph { width: 26px; height: 26px; }
+.kcard.mini .kcard-ic .glyph { width: 19px; height: 19px; }
+/* Plus de reliefs brillants : barres, notes, cases et anneaux passent à plat, en deux tons */
+.gbar-fill { box-shadow: 0 0 10px color-mix(in srgb, var(--bc) 55%, transparent); }
+.gbar-fill::after { background: linear-gradient(180deg, rgba(255, 255, 255, .28) 0, rgba(255, 255, 255, .28) 1px, transparent 1px, transparent 55%, rgba(0, 0, 0, .14) 55%); }
+.grade { min-width: 30px; height: 21px; padding: 0 8px; border-radius: 0; clip-path: polygon(5px 0, 100% 0, calc(100% - 5px) 100%, 0 100%); font-family: var(--fn); font-weight: 400; font-size: 13px; letter-spacing: .03em; color: #160E04; box-shadow: none; }
+.g-sp { background: linear-gradient(135deg, #FFF0C2 50%, #F2C66D 50%); }
+.g-s { background: linear-gradient(135deg, #F6DB94 50%, #D9AE5A 50%); }
+.g-a { background: linear-gradient(135deg, #9CF3D0 50%, #4FD9A6 50%); }
+.g-b { background: linear-gradient(135deg, #A9CCFF 50%, #5BA4FF 50%); }
+.g-c { background: linear-gradient(135deg, #D2CBE3 50%, #A99EC6 50%); }
+.g-d { color: #FFF0F2; background: linear-gradient(135deg, #F0526A 50%, #C21F38 50%); }
+.grade.lg { min-width: 62px; height: 40px; padding: 0 12px; font-size: 26px; clip-path: polygon(9px 0, 100% 0, calc(100% - 9px) 100%, 0 100%); }
+.grade.sm { min-width: 28px; height: 19px; font-size: 12px; }
+.grade.xs { min-width: 24px; height: 16px; padding: 0 5px; font-size: 10.5px; clip-path: polygon(4px 0, 100% 0, calc(100% - 4px) 100%, 0 100%); }
+.wk-r { font-family: var(--fn); font-weight: 400; background: color-mix(in srgb, var(--hi) 6%, transparent); }
+.wk-r.w { color: #160E04; background: linear-gradient(135deg, #FFF0C2 50%, #F2C66D 50%); }
+.wk-r.l { color: #FFF0F2; background: linear-gradient(135deg, #F0526A 50%, #C21F38 50%); }
+.wk-r.cur { color: var(--b2); background: color-mix(in srgb, var(--b2) 16%, transparent); }
+.wk-r.fut { background: color-mix(in srgb, var(--hi) 3%, transparent); }
+.sgrid i { border-radius: 0; }
+.sgrid i.on { background: linear-gradient(135deg, color-mix(in srgb, var(--b2) 62%, #fff) 50%, var(--b2) 50%); box-shadow: 0 0 6px color-mix(in srgb, var(--b2) 45%, transparent); }
+.islot-f { background: color-mix(in srgb, var(--hi) 16%, transparent); }
+.islot.on .islot-f { background: conic-gradient(from 225deg, color-mix(in srgb, var(--ic) 58%, #fff) 0deg 180deg, var(--ic) 180deg 360deg); }
+.kcard.on .kcard-f { background: linear-gradient(135deg, color-mix(in srgb, var(--kc) 55%, #fff) 50%, var(--kc) 50%); }
+.fab::before { background: linear-gradient(135deg, #FFFFFF 50%, var(--a1) 50%); }
+.fab-in::before { background: linear-gradient(135deg, color-mix(in srgb, var(--b2) 62%, #fff) 50%, var(--b2) 50%); }
+.nf-plus { background: linear-gradient(135deg, color-mix(in srgb, var(--pc) 55%, #fff) 50%, var(--pc) 50%); }

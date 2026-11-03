@@ -5,65 +5,69 @@ export const reduceMotion = () => typeof matchMedia !== "undefined" && matchMedi
 export const buzz = (ms = 8) => { try { if (navigator.userActivation?.hasBeenActive && navigator.vibrate) navigator.vibrate(ms); } catch {} };
 
 // ─────────────────────────────────────────────────────────────
-// Icônes (traits simples, 24 px)
+// Icônes au trait (24 px) : géométrie nette, angles vifs, bouts carrés
 // ─────────────────────────────────────────────────────────────
+const ng = (cx, cy, r, n, rot) => Array.from({ length: n }, (_, i) => { const a = rot + (i * 2 * Math.PI) / n; return `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`; });
+const oct = (cx, cy, r) => "M" + ng(cx, cy, r, 8, Math.PI / 8).join(" ") + "Z";
+const ray = (cx, cy, n, r1, r2s) => Array.from({ length: n }, (_, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / n, r2 = r2s[i % r2s.length]; return `M${(cx + r1 * Math.cos(a)).toFixed(2)} ${(cy + r1 * Math.sin(a)).toFixed(2)}L${(cx + r2 * Math.cos(a)).toFixed(2)} ${(cy + r2 * Math.sin(a)).toFixed(2)}`; }).join("");
+const STAR = "M" + Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 5, r = i % 2 ? 4.2 : 9.8; return `${(12 + r * Math.cos(a)).toFixed(2)},${(12.6 + r * Math.sin(a)).toFixed(2)}`; }).join(" ") + "Z";
 const P = {
-  target: <><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="4" /><circle cx="12" cy="12" r="0.8" fill="currentColor" /><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" /></>,
-  bowl: <><path d="M3 11.5h18a9 9 0 0 1-18 0Z" /><path d="M9 7.5c0-1.4 1.2-1.6 1.2-3M13.5 7.5c0-1.4 1.2-1.6 1.2-3" /></>,
+  target: <><path d={oct(12, 12, 8)} /><path d={oct(12, 12, 4)} /><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" /></>,
+  bowl: <><path d="M3 11.5h18l-2.6 6.6-3.4 2.4H9l-3.4-2.4Z" /><path d="M9 7.5c0-1.4 1.2-1.6 1.2-3M13.5 7.5c0-1.4 1.2-1.6 1.2-3" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
   dumbbell: <path d="M6.5 6.5v11M17.5 6.5v11M3.5 9.5v5M20.5 9.5v5M6.5 12h11" />,
   chart: <path d="M4 19.5V12M10 19.5V5.5M16 19.5v-5M3 19.5h18M20 19.5V9" />,
-  chat: <path d="M20.5 11.5a8 8 0 0 1-11.7 7.1L4 19.5l1-4.4a8 8 0 1 1 15.5-3.6Z" />,
-  sliders: <><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="17" cy="17" r="2" /></>,
+  chat: <path d="M3.5 4.5h17v11.4h-8.7L7 19.8v-3.9H3.5Z" />,
+  sliders: <><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1" /><path d="M13 5h4v4h-4ZM7 10h4v4H7ZM15 15h4v4h-4Z" /></>,
   left: <path d="M15 18l-6-6 6-6" />,
   right: <path d="M9 18l6-6-6-6" />,
   close: <path d="M6 6l12 12M18 6 6 18" />,
-  camera: <><path d="M4 8.5h3l1.8-2.8h6.4L17 8.5h3V19H4Z" /><circle cx="12" cy="13.5" r="3.3" /></>,
-  search: <><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></>,
-  star: <path d="m12 3.5 2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8Z" />,
+  camera: <><path d="M3.6 7.8h3.6l1.8-2.8h6l1.8 2.8h3.6v11.4H3.6Z" /><path d={oct(12, 13.4, 3.4)} /></>,
+  search: <><path d={oct(10.8, 10.8, 6.6)} /><path d="m20.4 20.4-4.8-4.8" /></>,
+  star: <path d={STAR} />,
   pen: <path d="M4 20h4L19.5 8.5l-4-4L4 16v4Z" />,
   clip: <><path d="M9 3.5h6v3H9z" /><path d="M7 5H5v15.5h14V5h-2" /><path d="M8.5 11h7M8.5 15h5" /></>,
   check: <path d="m5 12.5 4.5 4.5L19 7.5" />,
   chevron: <path d="m6 9 6 6 6-6" />,
-  book: <path d="M5 4.5h11a3 3 0 0 1 3 3v12H8a3 3 0 0 1-3-3Zm0 12a3 3 0 0 1 3-3h11" />,
-  home: <><path d="M3.5 11 12 4l8.5 7" /><path d="M6 9.5V20h12V9.5" /><path d="M10 20v-5h4v5" /></>,
-  scale: <><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8.5 10a3.5 3.5 0 0 1 7 0" /><path d="m12 10 1.4-1.8" /></>,
-  sun: <><circle cx="12" cy="12" r="3.8" /><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" /></>,
-  moon: <path d="M19.5 14.2A7.8 7.8 0 1 1 9.8 4.5a6.3 6.3 0 0 0 9.7 9.7Z" />,
-  drop: <path d="M12 3.3c3.3 4.2 6 7.3 6 10.6a6 6 0 0 1-12 0c0-3.3 2.7-6.4 6-10.6Z" />,
-  pill: <><rect x="3.2" y="8.6" width="17.6" height="6.8" rx="3.4" transform="rotate(-35 12 12)" /><path d="m9.2 8 5.6 8" /></>,
-  dropper: <><path d="m14.2 5.6 4.2 4.2" /><path d="M16.3 7.7 8.6 15.4l-2.9.8.8-2.9 7.7-7.7" /><path d="m15.4 4.4 1-1a2 2 0 0 1 2.9 0l1.3 1.3a2 2 0 0 1 0 2.9l-1 1" /><path d="M4.6 18.4c.9 1 1.3 1.7 1.3 2.2a1.3 1.3 0 0 1-2.6 0c0-.5.4-1.2 1.3-2.2Z" /></>,
-  posture: <><circle cx="12" cy="4.6" r="2" /><path d="M12 7.6v7.2M7.5 10.2h9M12 14.8l-2.6 5.6M12 14.8l2.6 5.6" /></>,
-  shield: <><path d="M12 3.4 19 6v5.6c0 4.3-2.9 7.6-7 9-4.1-1.4-7-4.7-7-9V6Z" /><path d="M12 9v5M9.5 11.5h5" /></>,
-  flame: <path d="M12 21.2a6.2 6.2 0 0 0 6.2-6.2c0-3.7-2.6-5.5-3.6-9.5-2.1 1.6-3.1 3.6-3.1 5.9-1-.7-1.6-1.8-1.7-3C7.6 10 5.8 12.4 5.8 15a6.2 6.2 0 0 0 6.2 6.2Z" />,
-  spark: <><path d="M12 3.5 13.9 10l6.6 2-6.6 2L12 20.5 10.1 14l-6.6-2 6.6-2Z" /></>,
+  book: <path d="M5 4.5h11.5L19 7v12.5H7.5L5 17Zm0 12.5h14" />,
+  home: <path d="M3.5 10.2 12 3.6l8.5 6.6v10.2h-5.6v-5.8H9.1v5.8H3.5Z" />,
+  scale: <><path d="M4 4h16v16H4Z" /><path d="M8.5 10.5 12 7l3.5 3.5M12 7v5" /></>,
+  sun: <><path d={oct(12, 12, 4)} /><path d={ray(12, 12, 8, 6.6, [10.2, 9])} /></>,
+  moon: <path d="M20.4 15.1A8.6 8.6 0 1 1 9.6 3.4a7 7 0 0 0 10.8 11.7Z" />,
+  drop: <path d="M12 3 18.2 12.6v3.5L15 20.6H9l-3.2-4.5v-3.5Z" />,
+  pill: <><path d="M14.2 3.6 20.4 9.8 9.8 20.4 3.6 14.2Z" /><path d="m8.9 8.9 6.2 6.2" /></>,
+  dropper: <><path d="m14.2 5.6 4.2 4.2" /><path d="M16.3 7.7 8.6 15.4l-2.9.8.8-2.9 7.7-7.7" /><path d="m15.4 4.4 1.6-1.6 4.2 4.2-1.6 1.6" /><path d="M4.6 18 6 20.2 4.6 21.6 3.2 20.2Z" /></>,
+  posture: <><path d="M12 1.8 14 3.8 12 5.8 10 3.8Z" /><path d="M12 6.6v15M7.8 9.4h8.4M8.6 13h6.8M9.4 16.6h5.2M10.2 20.2h3.6" /></>,
+  shield: <><path d="M12 2.6 19.6 5.6v7.4L12 21.4 4.4 13V5.6Z" /><path d="M12 8.4v6.2M8.9 11.5h6.2" /></>,
+  flame: <path d="M12 1.8 16.8 8.2l-.9 3.2 2.9-1.6 1.1 5.2-2.8 5L12 22.2l-5.1-2.2-2.8-5 2.1-5.6 2.4 2.5-.6-5.3Z" />,
+  spark: <path d="M12 2.4 14 10l7.6 2-7.6 2L12 21.6 10 14l-7.6-2L10 10Z" />,
   fork: <><path d="M7 3.5v7.2a2.3 2.3 0 0 0 4.6 0V3.5M9.3 3.5v17" /><path d="M16.8 20.5V3.5c-2 1.2-3 3.6-3 6.7v3.3h3" /></>,
-  bolt: <path d="M13.2 3 5.5 13.4h5.6L10.4 21l8.1-10.6h-5.7Z" />,
+  bolt: <path d="M14.6 2 4.6 13.4h6.3l-1.7 8.6 10.2-11.9h-6.5Z" />,
   undo: <path d="M9 7.5 4.5 12 9 16.5M5 12h9.5a5 5 0 0 1 0 10H12" />,
   play: <path d="M8 5.6v12.8L18.6 12Z" fill="currentColor" />,
   // ── Jeu
-  coin: <><circle cx="12" cy="12" r="8.6" /><path d="M12 7.4 15.6 12 12 16.6 8.4 12Z" /></>,
-  heart: <path d="M12 20.2s-7.6-4.6-7.6-10.3A4.4 4.4 0 0 1 12 7.2a4.4 4.4 0 0 1 7.6 2.7c0 5.7-7.6 10.3-7.6 10.3Z" />,
-  crystal: <><path d="M12 2.8 18.2 9 12 21.2 5.8 9Z" /><path d="M5.8 9h12.4M12 2.8 9.7 9 12 21.2 14.3 9 12 2.8" /></>,
-  sword: <><path d="M20.5 3.5 9.8 14.2" /><path d="M20.5 3.5h-4.3M20.5 3.5v4.3" /><path d="m6.8 11.2 6 6M4 20l3.6-3.6" /></>,
-  crown: <path d="M4.5 18.5h15M5.2 18.5 3.8 8.4l4.7 3.7L12 5.6l3.5 6.5 4.7-3.7-1.4 10.1" />,
-  trophy: <><path d="M8 3.8h8v5.4a4 4 0 0 1-8 0Z" /><path d="M8 5.8H4.6A3.2 3.2 0 0 0 8 10.3M16 5.8h3.4A3.2 3.2 0 0 1 16 10.3M12 13.2v3.6M8.4 20.2h7.2M9.6 16.8h4.8" /></>,
-  scroll: <><path d="M6.5 3.8h11a2.2 2.2 0 0 1 2.2 2.2v1.1h-4.4" /><path d="M15.3 6v12a2.2 2.2 0 0 1-2.2 2.2H5.8a2.2 2.2 0 0 1-2.2-2.2v-1.1h9.5" /><path d="M6.5 3.8A2.2 2.2 0 0 0 4.3 6v11M8.4 9h4M8.4 12.6h4" /></>,
-  eye: <><path d="M2.5 12S6 5.6 12 5.6 21.5 12 21.5 12 18 18.4 12 18.4 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="3" /></>,
-  potion: <><path d="M9.4 3.4h5.2M10.4 3.4v4.4L5.9 15a4.8 4.8 0 0 0 4.2 6.1h3.8a4.8 4.8 0 0 0 4.2-6.1l-4.5-7.2V3.4" /><path d="M7.3 14.2h9.4" /></>,
-  hourglass: <path d="M6.5 3.5h11M6.5 20.5h11M7.6 3.5c0 5 8.8 5.5 8.8 8.5s-8.8 3.5-8.8 8.5M16.4 3.5c0 5-8.8 5.5-8.8 8.5s8.8 3.5 8.8 8.5" />,
-  rune: <><path d="M12 2.8 19.8 7.3v9.4L12 21.2l-7.8-4.5V7.3Z" /><path d="M12 7.2v9.6M8.6 9.6 15.4 14.4M15.4 9.6 8.6 14.4" /></>,
-  recall: <><circle cx="12" cy="12" r="3.4" /><path d="M12 3.5a8.5 8.5 0 0 1 8.5 8.5M12 20.5A8.5 8.5 0 0 1 3.5 12" /><path d="M20.5 12l-2.2-2.4M3.5 12l2.2 2.4" /></>,
-  lock: <><rect x="5" y="10.6" width="14" height="10" rx="2" /><path d="M8.5 10.6V7.8a3.5 3.5 0 0 1 7 0v2.8" /></>,
-  info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5.6M12 7.6v.4" /></>,
-  flag: <path d="M5.5 21V3.8M5.5 4h12l-2.6 4.1 2.6 4.1h-12" />,
+  coin: <><path d={oct(12, 12, 9)} /><path d="M12 8 16 12 12 16 8 12Z" /></>,
+  heart: <path d="M12 20.6 3.2 11.8V7.4l4.2-4.2L12 7.8l4.6-4.6 4.2 4.2v4.4Z" />,
+  crystal: <path d="M12 2.4 19 8.4 12 21.6 5 8.4Z M5 8.4h14M9.4 8.4 12 2.4l2.6 6M9.4 8.4 12 21.6l2.6-13.2" />,
+  sword: <path d="M20.6 3.4 9.6 14.4M20.6 3.4h-4.2M20.6 3.4v4.2M6.6 11.6l5.8 5.8M8.4 15.6l-4.6 4.6" />,
+  crown: <path d="M3 7.5l4.6 4.6L12 4l4.4 8.1L21 7.5l-1.8 10.5H4.8ZM4.8 21h14.4" />,
+  trophy: <path d="M7 3h10v5.4l-2.6 4-1.7.8v3.2l3 3v2.6H8.3v-2.6l3-3v-3.2l-1.7-.8L7 8.4ZM7 4.6H3.6v2.8L7 10.2M17 4.6h3.4v2.8L17 10.2" />,
+  scroll: <><path d="M6.5 3.8h11L19.7 6v1.1h-4.4" /><path d="M15.3 6v12.4l-2 1.8H5.6l-2-1.8v-1.3h9.5" /><path d="M6.5 3.8 4.3 6v11M8.4 9h4M8.4 12.6h4" /></>,
+  eye: <path d="M2 12l5-5.8h10l5 5.8-5 5.8H7ZM12 9l3 3-3 3-3-3Z" />,
+  potion: <path d="M9.4 2.4h5.2M10.4 2.4v5.9l-5.6 7.3v3.3l3.2 3.3h8l3.2-3.3v-3.3l-5.6-7.3V2.4M6 15.4h12" />,
+  hourglass: <path d="M5 2.6h14M5 21.4h14M6.6 2.6v2l5.4 7.4-5.4 7.4v2M17.4 2.6v2L12 12l5.4 7.4v2" />,
+  rune: <><path d="M12 2.6 20.2 7.3v9.4L12 21.4l-8.2-4.7V7.3Z" /><path d="M12 7v10M8.4 9.5l7.2 5M15.6 9.5l-7.2 5" /></>,
+  recall: <path d="M12 3.4a8.6 8.6 0 0 1 8.1 5.6M12 20.6a8.6 8.6 0 0 1-8.1-5.6M17.4 9.6h3.4V6.2M6.6 14.4H3.2v3.4M12 9.2l2.8 2.8-2.8 2.8-2.8-2.8Z" />,
+  lock: <path d="M5 10.6h14v10.2H5ZM8.4 10.6V7.6a3.6 3.6 0 0 1 7.2 0v3" />,
+  info: <path d="M12 2.6 21.4 12 12 21.4 2.6 12ZM12 10.8v5.2M12 7.6v.8" />,
+  flag: <path d="M5.6 21.4V2.8M5.6 3.6h12.6l-2.8 4.3 2.8 4.3H5.6" />,
   map: <><path d="M3.5 6.5 9 4l6 2.5 5.5-2.5v13.5L15 20l-6-2.5-5.5 2.5Z" /><path d="M9 4v13.5M15 6.5V20" /></>,
-  user: <><circle cx="12" cy="8.2" r="4" /><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0" /></>,
-  swords: <><path d="M14.5 9.5 20.5 3.5h-3.8M20.5 3.5v3.8M9.5 14.5l-6 6M3.5 20.5" /><path d="M9.5 9.5 3.5 3.5h3.8M3.5 3.5v3.8M14.5 14.5l6 6" /><path d="m7.4 16.6-2-2M16.6 16.6l2-2" /></>,
+  user: <path d="M12 3.2 15.4 6.6 12 10l-3.4-3.4ZM4.6 20.8l2.4-7h10l2.4 7Z" />,
+  swords: <path d="M3.6 3.6 15 15M12.6 17.4l4.8-4.8M15 15l4.8 4.8M20.4 3.6 9 15M6.6 12.6l4.8 4.8M9 15l-4.8 4.8" />,
 };
-export function Icon({ n, size = 22, sw = 1.8, style }) {
+export function Icon({ n, size = 22, sw = 1.7, style }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={style}>
+    <svg className="ico" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="square" strokeLinejoin="miter" strokeMiterlimit="6" aria-hidden="true" style={style}>
       {P[n]}
     </svg>
   );

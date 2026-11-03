@@ -7,7 +7,7 @@ import React from "react";
 import * as L from "./lib.js";
 import * as G from "./game.js";
 import { Icon, Count } from "./ui.jsx";
-import { Portrait, GBar, Emblem, Coin, StackGrid } from "./hud.jsx";
+import { Portrait, GBar, Emblem, Coin, StackGrid, Glyph } from "./hud.jsx";
 import { Backdrop, Ridges, Particles, Moon, Deco, Orn, Torn, Doodles, damask, skyFor } from "./art.jsx";
 
 const { fint, fdec, fH } = L;
@@ -112,13 +112,13 @@ export function PosterHome({ ctx, d, boot }) {
         </div>
         <div className="ph-stats">
           <button className="ph-stat hp" onClick={() => ctx.open({ type: "sleep", k: todayK })} aria-label={`Points de vie, ton sommeil : ${di.sh != null ? fH(di.sh) : "pas noté"}`}>
-            <span className="ps-v"><Icon n="heart" size={14} sw={2.2} />{di.sh != null ? fH(di.sh) : "À noter"}</span><span className="ps-l">PV, ta nuit</span>
+            <span className="ps-v"><Glyph n="heart" size={15} />{di.sh != null ? fH(di.sh) : "À noter"}</span><span className="ps-l">PV, ta nuit</span>
           </button>
           <button className="ph-stat mana" onClick={() => ctx.go("sport")} aria-label={`Mana : ${m.cur} sur ${m.max}. Voir l'Arène.`}>
-            <span className="ps-v"><Icon n="crystal" size={14} sw={2.2} />{m.cur}</span><span className="ps-l">mana sur {m.max}</span>
+            <span className="ps-v"><Glyph n="crystal" size={15} />{m.cur}</span><span className="ps-l">mana sur {m.max}</span>
           </button>
           <div className={"ph-stat streak" + (sk.ready ? " flash" : "")} title="Le Flash sauve ta série une fois par semaine">
-            <span className="ps-v"><Icon n="flame" size={14} sw={2.2} />{sk.n}</span><span className="ps-l">{sk.ready ? "série, Flash prêt" : `série, Flash ${sk.inDays} j`}</span>
+            <span className="ps-v"><Glyph n="flame" size={15} />{sk.n}</span><span className="ps-l">{sk.ready ? "série, Flash prêt" : `série, Flash ${sk.inDays} j`}</span>
           </div>
           <button className="ph-stat rank" onClick={() => ctx.go("profile", undefined, "rank")} aria-label={rk ? `Rang ${rk.cur.name}, ${rk.cur.lp} LP` : "Non classé"}>
             <span className="ps-v"><Emblem tier={rk ? rk.cur.tier : 0} size={18} dim={!rk} />{rk ? rk.cur.name : "–"}</span><span className="ps-l">{rk ? `${rk.cur.lp} LP` : "non classé"}</span>

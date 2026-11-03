@@ -23,6 +23,8 @@ Ouvert sur iPhone depuis l'écran d'accueil : https://contactvisulink-stack.gith
   - `src/content.js` : le codex, les astuces de chargement et les notes de patch.
   - `src/art.jsx` : les illustrations (ciels et fumées peints au bruit de simplex, montagnes, lune, cadres art déco,
     papier déchiré, damas, graffitis, grain). `src/posters.jsx` : les affiches des quatre onglets.
+  - `src/glyphs.jsx` : les pictogrammes à plat et à facettes (glyphes du jeu, items, emblèmes de rang, boss, pièce).
+    Les icônes au trait sont dans `src/ui.jsx`.
   - `src/poster.css` : l'habillage du patch 8.1 (ambiances par onglet). `src/styles.css` et `src/kept.css` : le reste.
   - `test/e2e8.py`, `test/shots8.py` et `test/shots81.py` : le parcours complet et les captures.
 - `radar/` : Radar Perth, l'appli des sorties à Perth (https://contactvisulink-stack.github.io/Tracker-/radar/).

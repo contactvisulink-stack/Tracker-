@@ -215,7 +215,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(200)
     page.get_by_role("button", name="Notes de patch", exact=True).click(); page.wait_for_timeout(300)
     n = page.locator(".patch-row").count()
-    ok("notes de patch : 8.1 en haut, les 52 du 8.0 gardées dessous", n == 15 + 52 and "Affiche" in page.locator(".patch-h h3").first.inner_text(), str(n))
+    ok("notes de patch : 8.1 en haut, les 52 du 8.0 gardées dessous", n == 16 + 52 and "Affiche" in page.locator(".patch-h h3").first.inner_text(), str(n))
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(200)
     page.locator(".top-seg button", has_text="Glow-up").click(); page.wait_for_timeout(400)
     page.locator("input[type=file]:not([capture])").set_input_files(PHOTO); page.wait_for_timeout(1500)

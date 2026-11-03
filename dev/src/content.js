@@ -236,6 +236,7 @@ export const PATCH = {
       ["REFONTE", "Annonces : des tags au marqueur néon pour les kills, les niveaux et les records."],
       ["REFONTE", "Écran de chargement : l'affiche du match, toi contre le boss."],
       ["REFONTE", "Fin de partie : or pour une victoire, cramoisi pour une défaite."],
+      ["REFONTE", "Pictogrammes redessinés à plat, à facettes : items, emblèmes de rang, boss, objectifs, notes et icônes."],
     ] },
     { t: "Skins", items: [
       ["AJUSTEMENT", "Les skins deviennent des ambiances qui habillent tous les onglets : Graffiti, Infernal, Abysse, Prestige, Challenger."],
