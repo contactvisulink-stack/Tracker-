@@ -1,4 +1,4 @@
-"""Parcours complet du patch 8 « Le Reforge » dans Chromium (iPhone, heure de Perth), API Claude simulée."""
+"""Parcours complet du patch 8.1 « L'Affiche » (moteur du patch 8) dans Chromium (iPhone, heure de Perth), API Claude simulée."""
 import json, os, sys
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
@@ -55,9 +55,10 @@ with sync_playwright() as p:
     ok("écran d'import à la 1re ouverture", page.locator(".welc").count() == 1)
     page.screenshot(path=f"{OUT}/e0-import.png")
     page.get_by_role("button", name="Jouer", exact=True).click(); page.wait_for_timeout(400)
-    ok("état du jeu enregistré", (store("t2:seen") or {}).get("patch") == "8.0")
+    ok("état du jeu enregistré", (store("t2:seen") or {}).get("patch") == "8.1")
     ok("salutation de nuit (lecteur d'écran)", "Il est tard" in page.locator(".sr-only").inner_text())
-    ok("HUD : portrait, PV, mana", page.locator(".portrait").count() == 1 and page.locator(".gbar.hp").count() == 1 and page.locator(".gbar.mana").count() == 1)
+    ok("affiche : médaillon, PV, mana", page.locator(".portrait").count() == 1 and page.locator(".ph-stat.hp").count() == 1 and page.locator(".ph-stat.mana").count() == 1)
+    ok("affiche peinte (ciel)", page.locator(".poster .bd-img").count() == 1)
 
     # 1) Recall : je pose le téléphone → fin de partie → nuit → réveil
     page.get_by_role("button", name="Je pose le téléphone").click(); page.wait_for_timeout(500)
@@ -153,7 +154,7 @@ with sync_playwright() as p:
         el.dispatchEvent(new TouchEvent(type, {touches: type==='touchend'?[]:[tt], changedTouches: [tt], bubbles: true})); };
       t('touchstart', 80); t('touchend', 300); }""")
     page.wait_for_timeout(300)
-    ok("glisser à droite = hier", page.locator(".daynav-t").inner_text() == "Hier")
+    ok("glisser à droite = hier", page.locator(".daynav-t").inner_text().strip().lower() == "hier")
     page.get_by_role("button", name="Dex", exact=False).count()
 
     # 9) Arène : import Hevy, sorts, +1 rep
@@ -214,7 +215,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(200)
     page.get_by_role("button", name="Notes de patch", exact=True).click(); page.wait_for_timeout(300)
     n = page.locator(".patch-row").count()
-    ok("notes de patch : 50 à 60 changements", 50 <= n <= 60, str(n))
+    ok("notes de patch : 8.1 en haut, les 52 du 8.0 gardées dessous", n == 15 + 52 and "Affiche" in page.locator(".patch-h h3").first.inner_text(), str(n))
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(200)
     page.locator(".top-seg button", has_text="Glow-up").click(); page.wait_for_timeout(400)
     page.locator("input[type=file]:not([capture])").set_input_files(PHOTO); page.wait_for_timeout(1500)
@@ -256,8 +257,7 @@ with sync_playwright() as p:
     # 17) Le lendemain : écran de chargement une fois
     page.clock.set_system_time(datetime(2026, 10, 9, 10, 0, tzinfo=P)); page.reload(); page.wait_for_timeout(700)
     ok("écran de chargement le lendemain", page.locator(".load").count() == 1)
-    page.screenshot(path=f"{OUT}/e8-chargement.png")
-    page.locator(".load").click(); page.wait_for_timeout(300)
+    page.locator(".load").click(timeout=3000); page.wait_for_timeout(300)
     ok("on passe en touchant", page.locator(".load").count() == 0)
     page.reload(); page.wait_for_timeout(700)
     ok("pas deux fois le même jour", page.locator(".load").count() == 0)

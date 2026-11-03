@@ -5,7 +5,8 @@ import * as G from "./game.js";
 import { PATCH } from "./content.js";
 import { sfx, announce } from "./sfx.js";
 import { Icon, Confetti, buzz } from "./ui.jsx";
-import { Home, Hud, greeting } from "./home.jsx";
+import { Home, greeting } from "./home.jsx";
+import { initGrain } from "./art.jsx";
 import { Food, AddFood, Foods } from "./food.jsx";
 import { Sport, HevyImport, ProgramEdit } from "./sport.jsx";
 import { Profile } from "./progress.jsx";
@@ -43,7 +44,9 @@ async function installUpdate() {
   location.reload();
 }
 
-const TITLES = { home: "Base", food: "Farm", sport: "Arène", profile: "Profil" };
+// Chaque onglet a son ambiance d'affiche ; un skin peut imposer la sienne partout
+const MOOD = { home: "astral", food: "braise", sport: "sang", profile: "or" };
+const FORCED = { neon: "neon", infernal: "braise", abysse: "abysse", prestige: "or", challenger: "astral" };
 const rawGet = (k, fb) => { try { const s = localStorage.getItem("t2:" + k); return s == null ? fb : JSON.parse(s); } catch { return fb; } };
 const rawSet = (k, v) => { try { localStorage.setItem("t2:" + k, JSON.stringify(v)); } catch {} };
 
@@ -64,6 +67,14 @@ function App() {
     document.addEventListener("visibilitychange", upd);
     window.addEventListener("focus", upd);
     return () => { clearInterval(iv); document.removeEventListener("visibilitychange", upd); window.removeEventListener("focus", upd); };
+  }, []);
+
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    initGrain();
+    const on = () => setScrolled(window.scrollY > 24);
+    window.addEventListener("scroll", on, { passive: true });
+    return () => window.removeEventListener("scroll", on);
   }, []);
 
   const S = L.getSettings();
@@ -103,8 +114,11 @@ function App() {
     if (kind === "workout") push({ t: "Sort lancé", s: "Séance enregistrée, charges mises à jour", tone: "blue", sound: sfx.item });
     else if (kind === "posture") push({ t: "Dos droit", s: "Routine posture faite", tone: "green", sound: sfx.item });
   };
+  const skin = G.SKINS.find((x) => x.id === S.skin) || G.SKINS[0];
+  const skinOk = G.skinOk(skin, G.account(todayK), G.rank());
+  const mood = (skinOk && FORCED[skin.id]) || MOOD[tab];
   const ctx = {
-    S, todayK, now, say, celebrate, sub, push,
+    S, todayK, now, say, celebrate, sub, push, mood,
     open: (s) => (s.type === "match" ? setMatch(s.k) : setSheet(s)),
     close: () => setSheet(null),
     go: (t, k, sb) => { setSheet(null); setTab(t); setSub(sb || null); setFoodK(k && k !== todayK ? k : null); window.scrollTo({ top: 0 }); },
@@ -136,6 +150,10 @@ function App() {
     if (fresh.length || ids.length !== (prev.ids || []).length) rawSet("ann:" + todayK, { ids });
     const ns = { ...seen };
     let dirty = false;
+    if (seen.patch !== PATCH.v) {
+      push({ kicker: `Patch ${PATCH.v}`, t: PATCH.n, s: "Nouveau visuel. Les notes sont dans Profil.", tone: "purple", big: true, sound: sfx.level });
+      ns.patch = PATCH.v; dirty = true;
+    }
     if (acc.level > (seen.lvl || 0)) {
       const skin = G.SKINS.find((s) => s.req?.lvl && s.req.lvl > (seen.lvl || 0) && s.req.lvl <= acc.level);
       push({ t: `Niveau ${acc.level}`, s: skin ? `Skin débloqué : ${skin.n}` : "Niveau de compte", tone: "blue", sound: sfx.level });
@@ -162,28 +180,11 @@ function App() {
 
   const update = useUpdateCheck();
   const viewK = foodK && foodK < todayK ? foodK : todayK;
-  const skin = G.SKINS.find((s) => s.id === S.skin) || G.SKINS[0];
-  const skinOk = G.skinOk(skin, G.account(todayK), G.rank());
   const night = L.store.get("night", null);
 
   return (
-    <div className={"app skin-" + (skinOk ? skin.id : "hextech") + (tab === "home" ? " on-home" : "")}>
-      <div className="ambient" aria-hidden="true" />
-      <header className={"top" + (tab === "home" ? " home" : "")}>
-        {tab === "home" ? <Hud ctx={ctx} /> : (
-          <>
-            <div>
-              <h1 className="top-t">{TITLES[tab]}</h1>
-              <div className="top-d">{L.cap(L.fmtDay(todayK))}</div>
-            </div>
-            <div className="top-r">
-              <button className="round-btn" onClick={() => setSheet({ type: "coach" })} aria-label="Coach"><Icon n="chat" size={19} /></button>
-              <button className="round-btn" onClick={() => setSheet({ type: "settings" })} aria-label="Runes et réglages"><Icon n="rune" size={20} /></button>
-            </div>
-          </>
-        )}
-        <span className="sr-only">{greeting(nowD, night)}</span>
-      </header>
+    <div className={"app skin-" + (skinOk ? skin.id : "hextech") + " mood-" + mood + (tab === "home" ? " on-home" : "") + (scrolled ? " scrolled" : "")}>
+      <span className="sr-only">{greeting(nowD, night)}</span>
 
       <main key={tab + (sub || "")} className="main">
         {tab === "home" && <Home ctx={ctx} />}

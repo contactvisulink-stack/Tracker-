@@ -108,15 +108,16 @@ export function CodexSheet({ ctx, focus }) {
 }
 
 const TAG = { NOUVEAU: "new", BUFF: "buff", REFONTE: "rework", AJUSTEMENT: "adj" };
-export function PatchSheet({ ctx }) {
+function PatchBody({ P, sub }) {
   return (
-    <Sheet title={`Patch ${PATCH.v}`} onClose={ctx.close} tall>
-      <div className="patch-h">
-        <h3>{PATCH.n}</h3>
-        <span>{PATCH.date}, {patchCount()} changements</span>
+    <>
+      <div className={"patch-h" + (sub ? " sub" : "")}>
+        {sub && <span className="patch-v">Patch {P.v}</span>}
+        <h3>{P.n}</h3>
+        <span>{P.date}, {patchCount(P)} changements</span>
       </div>
-      <p className="patch-i">{PATCH.intro}</p>
-      {PATCH.sections.map((s) => (
+      <p className="patch-i">{P.intro}</p>
+      {P.sections.map((s) => (
         <section key={s.t} className="patch-s">
           <h4>{s.t}</h4>
           {s.items.map(([tag, txt], i) => (
@@ -124,6 +125,14 @@ export function PatchSheet({ ctx }) {
           ))}
         </section>
       ))}
+    </>
+  );
+}
+export function PatchSheet({ ctx }) {
+  return (
+    <Sheet title={`Patch ${PATCH.v}`} onClose={ctx.close} tall>
+      <PatchBody P={PATCH} />
+      {PATCH.prev && <PatchBody P={PATCH.prev} sub />}
     </Sheet>
   );
 }

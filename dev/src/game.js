@@ -656,12 +656,12 @@ export function titles(k) {
 export const currentTitle = (S, k) => { const list = titles(k); const t = list.find((x) => x.id === S.title && x.ok); return (t || list[0]).n; };
 
 export const SKINS = [
-  { id: "hextech", n: "Hextech", d: "Or et bleu, le thème de base.", req: null },
-  { id: "neon", n: "Néon v7", d: "Les couleurs de ta version d'avant.", req: { lvl: 5 } },
-  { id: "infernal", n: "Infernal", d: "Braise et rouge.", req: { lvl: 15 } },
-  { id: "abysse", n: "Abysse", d: "Océan et turquoise.", req: { lvl: 25 } },
-  { id: "prestige", n: "Prestige", d: "Blanc et or, à partir du rang Or.", req: { tier: 3 } },
-  { id: "challenger", n: "Challenger", d: "Pour ceux qui ont atteint leur poids visé.", req: { tier: 9 } },
+  { id: "hextech", n: "Affiche", d: "Une ambiance par onglet, le ciel de la Base suit l'heure.", req: null },
+  { id: "neon", n: "Graffiti", d: "Néon et tags sur tous les onglets.", req: { lvl: 5 } },
+  { id: "infernal", n: "Infernal", d: "Braise et fumée partout.", req: { lvl: 15 } },
+  { id: "abysse", n: "Abysse", d: "Nuit turquoise partout.", req: { lvl: 25 } },
+  { id: "prestige", n: "Prestige", d: "Or et art déco partout, dès le rang Or.", req: { tier: 3 } },
+  { id: "challenger", n: "Challenger", d: "Le ciel étoilé partout, au poids visé.", req: { tier: 9 } },
 ];
 export const skinReq = (s) => (!s.req ? "" : s.req.lvl ? `Niveau ${s.req.lvl}` : `Rang ${TIERS[s.req.tier].n}`);
 export function skinOk(s, acc, rk) {

@@ -4,7 +4,7 @@ import * as G from "./game.js";
 import { Icon, Count, buzz } from "./ui.jsx";
 import { GlowUp } from "./glowup.jsx";
 import { Portrait, Emblem, GBar, Grade, KillDots, Coin } from "./hud.jsx";
-import { pseudoOf } from "./home.jsx";
+import { pseudoOf, PosterProfil } from "./posters.jsx";
 
 const { fint, fdec, fH } = L;
 const shortDate = (k) => L.cap(L.fmtDay(k, { weekday: "short", day: "numeric", month: "short" }));
@@ -17,46 +17,12 @@ export function Profile({ ctx }) {
   const [tab, setTab] = useState(init);
   return (
     <div className="page">
-      <SummonerCard ctx={ctx} />
+      <PosterProfil ctx={ctx} />
       <div className="seg top-seg">
         {TABS.map(([id, l]) => <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{l}</button>)}
       </div>
       {tab === "rank" ? <Ranked ctx={ctx} /> : tab === "games" ? <Games ctx={ctx} /> : tab === "ach" ? <Achievements ctx={ctx} /> : <GlowUp ctx={ctx} />}
     </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Carte d'invocateur
-// ─────────────────────────────────────────────────────────────
-function SummonerCard({ ctx }) {
-  const { S, todayK } = ctx;
-  const acc = G.account(todayK);
-  const rk = G.rank();
-  const wr = G.winrate(todayK, 30);
-  const sk = G.streak(todayK);
-  const name = pseudoOf(S);
-  return (
-    <section className="sumc frame">
-      <div className="sumc-top">
-        <Portrait level={acc.level} pct={acc.pct} size={74} letter={name[0]} label={`Niveau de compte ${acc.level}`} />
-        <div className="sumc-id">
-          <h2 className="sumc-n">{name}</h2>
-          <div className="sumc-t">{G.currentTitle(S, todayK)}</div>
-          <GBar kind="xp" v={acc.into} max={acc.need} text={`${fint(acc.into)} / ${fint(acc.need)} XP`} ticks={5} />
-          <div className="sumc-l">Niveau de compte {acc.level}, {fint(acc.total)} XP au total</div>
-        </div>
-      </div>
-      <div className="sumc-stats">
-        <div className="ss"><span className="ss-v">{rk ? <><Emblem tier={rk.cur.tier} size={22} />{rk.cur.name}</> : "Non classé"}</span><span className="ss-l">{rk ? `${rk.cur.lp} LP` : "pèse-toi"}</span></div>
-        <div className="ss"><span className="ss-v">{wr.pct != null ? `${Math.round(wr.pct * 100)} %` : "–"}</span><span className="ss-l">winrate 30 j, {wr.w} V {wr.l} D</span></div>
-        <div className="ss"><span className="ss-v">{sk.n}</span><span className="ss-l">{sk.ready ? "série, Flash prêt" : `série, Flash dans ${sk.inDays} j`}</span></div>
-      </div>
-      <div className="sumc-btns">
-        <button className="pill-btn" onClick={() => ctx.open({ type: "codex" })}><Icon n="book" size={15} /> Codex</button>
-        <button className="pill-btn" onClick={() => ctx.open({ type: "patch" })}><Icon n="scroll" size={15} /> Notes de patch</button>
-      </div>
-    </section>
   );
 }
 

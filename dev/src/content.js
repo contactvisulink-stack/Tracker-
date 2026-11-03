@@ -140,8 +140,8 @@ export const TIPS = [
   "Toujours la même balance, au même moment : sinon tes LP mentent.",
 ];
 
-/** Notes de patch de cette version */
-export const PATCH = {
+/** Notes du patch précédent (8.0), gardées sous les nouvelles */
+const PATCH80 = {
   v: "8.0",
   n: "Le Reforge",
   date: "novembre 2026",
@@ -213,4 +213,35 @@ export const PATCH = {
     ] },
   ],
 };
-export const patchCount = () => PATCH.sections.reduce((a, s) => a + s.items.length, 0);
+/** Notes de patch de cette version */
+export const PATCH = {
+  v: "8.1",
+  n: "L'Affiche",
+  date: "novembre 2026",
+  intro: "Même partie, nouveau visuel. Chaque onglet s'ouvre sur une affiche peinte à partir de tes données, comme un poster d'événement. Tes données et les règles du jeu n'ont pas bougé.",
+  sections: [
+    { t: "Les affiches", items: [
+      ["NOUVEAU", "Base : le ciel suit l'heure de ta journée. Aube, journée, fin d'après-midi, crépuscule, nuit."],
+      ["NOUVEAU", "Ton gold du jour en très grand, avec les montagnes qui passent devant."],
+      ["NOUVEAU", "La nuit, le recall sous la lune : elle se remplit à mesure que tu dors."],
+      ["NOUVEAU", "Farm : une affiche de jour de match, toi contre le boss de la semaine."],
+      ["NOUVEAU", "Arène : damas cramoisi et ta mana de séance en grand."],
+      ["NOUVEAU", "Profil : ta carte d'invocateur dans un cadre art déco, l'emblème de ton rang devant."],
+    ] },
+    { t: "Les pièces du jeu", items: [
+      ["REFONTE", "Objectifs du jour : cinq cartes d'escouade qui se remplissent, puis s'allument."],
+      ["REFONTE", "Inventaire : des médaillons, gris tant que l'item n'est pas fait aujourd'hui."],
+      ["REFONTE", "Quêtes du jour : des contrats sur parchemin, tamponnés quand c'est fait."],
+      ["REFONTE", "Boss de la semaine : une affiche cramoisie."],
+      ["REFONTE", "Annonces : des tags au marqueur néon pour les kills, les niveaux et les records."],
+      ["REFONTE", "Écran de chargement : l'affiche du match, toi contre le boss."],
+      ["REFONTE", "Fin de partie : or pour une victoire, cramoisi pour une défaite."],
+    ] },
+    { t: "Skins", items: [
+      ["AJUSTEMENT", "Les skins deviennent des ambiances qui habillent tous les onglets : Graffiti, Infernal, Abysse, Prestige, Challenger."],
+      ["NOUVEAU", "Graffiti : des tags dessinés sur tes affiches."],
+    ] },
+  ],
+  prev: PATCH80,
+};
+export const patchCount = (P = PATCH) => P.sections.reduce((a, s) => a + s.items.length, 0);

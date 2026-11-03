@@ -6,6 +6,7 @@
 import React, { useId, useRef } from "react";
 import * as L from "./lib.js";
 import * as G from "./game.js";
+import { Doodles, Drips } from "./art.jsx";
 import { Icon, buzz } from "./ui.jsx";
 
 const uid = () => useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -226,20 +227,20 @@ export function GBar({ kind, v, max, text, ic, onClick, label, ticks = 10 }) {
 // ═════════════════════════════════════════════════════════════
 // Kills (hexagones) et petits points de kills
 // ═════════════════════════════════════════════════════════════
-export function KillHex({ k, done, pct = 0, onClick, val }) {
+export function KillCard({ k, done, pct = 0, onClick, val, mini }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <button className={"khex" + (done ? " on" : "")} onClick={onClick} aria-label={`${k.n} : ${done ? "fait" : val || "à faire"}`}>
-      <span className="khex-b">
-        <span className="khex-in">
-          <i className="khex-fill" style={{ height: `${(done ? 1 : L.clamp(pct, 0, 1)) * 100}%` }} />
-          <Icon n={k.ic} size={21} sw={2} />
-        </span>
+    <Tag className={"kcard k-" + k.id + (done ? " on" : "") + (mini ? " mini" : "")} style={{ "--kp": done ? 1 : L.clamp(pct, 0, 1) }} onClick={onClick} aria-label={`${k.n} : ${done ? "fait" : val || "à faire"}`}>
+      <span className="kcard-f">
+        <i className="kcard-fill" />
+        <span className="kcard-ic"><Icon n={k.ic} size={mini ? 17 : 23} sw={1.9} /></span>
+        {val && <span className="kcard-v">{val}</span>}
       </span>
-      <span className="khex-l">{k.n}</span>
-      {val && <span className="khex-v">{val}</span>}
-    </button>
+      <span className="kcard-n">{k.n}</span>
+    </Tag>
   );
 }
+export const KillHex = (p) => <KillCard {...p} mini />;
 export function KillDots({ kill }) {
   return <span className="kdots" aria-hidden="true">{G.KILLS.map((k) => <i key={k.id} className={kill[k.id] ? "on" : ""} />)}</span>;
 }
@@ -307,15 +308,16 @@ export function Coin({ size = 16 }) {
 // ═════════════════════════════════════════════════════════════
 export function Announcer({ a }) {
   if (!a) return null;
+  const seed = [...String(a.t)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
   return (
     <div key={a.id} className={"ann t-" + (a.tone || "gold") + (a.big ? " big" : "")} role="status" aria-live="polite">
       <div className="ann-glow" aria-hidden="true" />
+      <Doodles seed={seed} n={a.big ? 7 : 5} />
       {a.art && <div className="ann-art">{a.art}</div>}
       {a.kicker && <div className="ann-k">{a.kicker}</div>}
-      <div className="ann-row">
-        <span className="ann-wing" aria-hidden="true" />
+      <div className="ann-tag">
         <div className="ann-t">{a.t}</div>
-        <span className="ann-wing r" aria-hidden="true" />
+        <Drips seed={seed + 1} n={a.big ? 8 : 6} />
       </div>
       {a.s && <div className="ann-s">{a.s}</div>}
     </div>

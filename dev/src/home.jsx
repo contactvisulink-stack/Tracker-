@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect } from "react";
 import * as L from "./lib.js";
 import * as G from "./game.js";
 import * as A from "./actions.js";
 import { Icon, Count, reduceMotion } from "./ui.jsx";
-import { Portrait, GBar, KillHex, ItemSlot, Emblem, BossArt, Grade, KillDots, Coin } from "./hud.jsx";
+import { GBar, ItemSlot, Emblem, BossArt, Grade, KillDots, KillCard } from "./hud.jsx";
+import { PosterHome, PosterNight, pseudoOf } from "./posters.jsx";
+import { Deco, Orn, Torn, damask } from "./art.jsx";
 import { WATER } from "./gamesheets.jsx";
 
 const { fint, fdec, fH } = L;
-export const pseudoOf = (S) => (S.pseudo || "Isma").trim() || "Isma";
+export { pseudoOf };
 const short = (k) => L.fmtDay(k, { day: "numeric", month: "short" }).replace(".", "");
 
 /** Salutation (gardée pour l'accessibilité et le mode nuit) */
@@ -23,65 +25,6 @@ function useBoot() {
   useEffect(() => { booted = true; }, []);
   return first;
 }
-function useWidth(ref, fallback = 320) {
-  const [w, setW] = useState(fallback);
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const upd = () => setW(Math.max(200, Math.round(el.getBoundingClientRect().width)));
-    upd();
-    if (typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(upd);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return w;
-}
-
-// ═════════════════════════════════════════════════════════════
-// Le HUD du champion (en-tête de l'accueil)
-// ═════════════════════════════════════════════════════════════
-export function Hud({ ctx }) {
-  const { S, todayK } = ctx;
-  const now = new Date(ctx.now);
-  const di = G.dayInfo(todayK);
-  const night = L.store.get("night", null);
-  const m = G.mana(todayK, now);
-  const rk = G.rank();
-  const sk = G.streak(todayK);
-  const name = pseudoOf(S);
-  let hpV = 0, hpT = "Nuit pas notée, touche pour l'ajouter";
-  if (night) { const hh = Math.max(0, (now - new Date(night.bed)) / 3.6e6); hpV = hh; hpT = `Régénération ${fH(hh)}`; }
-  else if (di.sh != null) { hpV = di.sh; hpT = `${fH(di.sh)} / ${fH(S.sleep)}`; }
-  return (
-    <div className="hud">
-      <div className="hud-top">
-        <Portrait level={di.level} pct={di.lvlPct} letter={name[0]} onClick={() => ctx.go("profile")} label={`${name}, niveau ${di.level} de la partie. Voir ton profil.`} />
-        <div className="hud-id">
-          <h1 className="hud-n">{name}</h1>
-          <div className="hud-t">{G.currentTitle(S, todayK)}</div>
-          <div className="hud-d">{L.cap(L.fmtDay(todayK))}</div>
-        </div>
-        <div className="top-r">
-          <button className="round-btn" onClick={() => ctx.open({ type: "coach" })} aria-label="Coach"><Icon n="chat" size={19} /></button>
-          <button className="round-btn" onClick={() => ctx.open({ type: "settings" })} aria-label="Runes et réglages"><Icon n="rune" size={20} /></button>
-        </div>
-      </div>
-      <div className="hud-bars">
-        <GBar kind="hp" ic="heart" v={hpV} max={S.sleep} text={<><em>PV</em>{hpT}</>} label={`Points de vie, ton sommeil : ${night ? "nuit en cours" : di.sh != null ? fH(di.sh) : "pas noté"}`} onClick={night ? undefined : () => ctx.open({ type: "sleep", k: todayK })} />
-        <GBar kind="mana" ic="crystal" v={m.cur} max={m.max} text={<><em>Mana</em>{m.cur} / {m.max}</>} label={`Mana : ${m.cur} sur ${m.max}. Voir l'Arène.`} onClick={() => ctx.go("sport")} />
-      </div>
-      <div className="hud-chips">
-        <button className="hchip rank" onClick={() => ctx.go("profile", undefined, "rank")} aria-label={rk ? `Rang ${rk.cur.name}, ${rk.cur.lp} LP` : "Non classé"}>
-          <Emblem tier={rk ? rk.cur.tier : 0} size={22} dim={!rk} />{rk ? <>{rk.cur.name}<b>{rk.cur.lp} LP</b></> : "Non classé"}
-        </button>
-        {sk.n > 0 && <span className="hchip streak"><Icon n="flame" size={14} sw={2.2} />{sk.n} {sk.n > 1 ? "victoires" : "victoire"}</span>}
-        <span className={"hchip flash" + (sk.ready ? " on" : "")} title="Le Flash sauve ta série une fois par semaine"><Icon n="bolt" size={13} sw={2.2} />{sk.ready ? "Flash prêt" : `Flash dans ${sk.inDays} j`}</span>
-      </div>
-    </div>
-  );
-}
-
 // ═════════════════════════════════════════════════════════════
 export function Home({ ctx }) {
   const d = L.getDay(ctx.todayK);
@@ -91,7 +34,7 @@ export function Home({ ctx }) {
   const di = G.dayInfo(ctx.todayK);
   return (
     <div className={"page home" + (night ? " at-night" : "") + (boot ? " boot" : "")}>
-      {night ? <NightHero ctx={ctx} night={night} /> : <Hero ctx={ctx} d={d} boot={boot} />}
+      {night ? <PosterNight ctx={ctx} night={night} /> : <PosterHome ctx={ctx} d={d} boot={boot} />}
       <NowCard ctx={ctx} d={d} night={night} />
       {!night && (
         <>
@@ -106,131 +49,6 @@ export function Home({ ctx }) {
         </>
       )}
     </div>
-  );
-}
-
-// ═════════════════════════════════════════════════════════════
-// Le farm du jour : ton gold (calories), ta courbe en marches
-// face au rythme idéal, les phases de la partie
-// ═════════════════════════════════════════════════════════════
-const hhmm = (m) => { const t = ((Math.round(m) + 300) % 1440 + 1440) % 1440; return `${Math.floor(t / 60)} h`; };
-function Hero({ ctx, d, boot }) {
-  const { S, todayK } = ctx;
-  const now = new Date(ctx.now);
-  const t = L.dayTot(d);
-  const tk = t.k || (d.legacy?.kcal ?? 0);
-  const p = L.pace(todayK, now, S);
-  const ref = useRef(null);
-  const W = useWidth(ref);
-  const H = 120, padT = 18, padB = 8;
-  const nowM = L.nowDayMin(now);
-  const wakeM = d.sleep?.wake ? L.dayMin(L.hm(d.sleep.wake)) : Math.min(nowM, L.dayMin("08:00"));
-  const endM = L.dayMin(L.hm(p.end));
-  const meals = d.entries.map((e) => ({ m: L.dayMin(e.t), k: L.entryTot(e).k })).sort((a, b) => a.m - b.m);
-  const planned = L.plannedMeals(todayK).filter((m) => !m.done).map((m) => ({ m: m.at, k: m.kcal }));
-  const x0 = Math.min(wakeM, meals[0]?.m ?? wakeM);
-  const x1 = Math.max(endM, nowM + 25, (meals[meals.length - 1]?.m ?? 0) + 25, ...planned.map((q) => q.m + 20));
-  const top = Math.max(S.kcal, tk) * 1.1;
-  const X = (m) => 4 + ((m - x0) / (x1 - x0 || 1)) * (W - 8);
-  const Y = (v) => H - padB - (v / top) * (H - padT - padB);
-  let cum = 0;
-  const pts = [[X(x0), Y(0)]];
-  meals.forEach((ml) => {
-    const x = X(Math.max(x0, ml.m));
-    pts.push([x, Y(cum)]);
-    cum += ml.k;
-    pts.push([Math.min(x + 7, X(x1)), Y(cum)]);
-  });
-  const nowX = X(Math.min(nowM, x1));
-  pts.push([Math.max(nowX, pts[pts.length - 1][0]), Y(cum)]);
-  const path = pts.map((q, i) => `${i ? "L" : "M"}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(" ");
-  const area = `${path} L${pts[pts.length - 1][0].toFixed(1)},${H} L${pts[0][0].toFixed(1)},${H} Z`;
-  const ideal = (m) => S.kcal * L.clamp((m - wakeM) / (endM - wakeM || 1), 0, 1);
-  const expNow = ideal(nowM);
-  const ahead = tk - expNow;
-  let chip;
-  if (tk >= S.kcal) chip = { cls: "ok", txt: tk - S.kcal >= 50 ? `+${fint(tk - S.kcal)} au-dessus` : "Objectif atteint" };
-  else if (p.frac < 0.04) chip = { cls: "", txt: "La partie commence" };
-  else chip = ahead >= 120 ? { cls: "ok", txt: `+${fint(ahead)} gold d'avance` } : ahead <= -150 ? { cls: "late", txt: `−${fint(-ahead)} gold de retard` } : { cls: "", txt: "Dans le rythme" };
-  const ticks = [0, 1, 2, 3].map((i) => x0 + ((x1 - x0) * i) / 3);
-  // phases : early jusqu'à 14 h, mid jusqu'à 19 h, late ensuite
-  const ph = G.phaseOf(now);
-  const b14 = L.dayMin("14:00"), b19 = L.dayMin("19:00");
-  const bands = [[x0, b14, "early", "Early"], [b14, b19, "mid", "Mid"], [b19, x1, "late", "Late"]].filter(([a, b]) => b > x0 && a < x1);
-  const phEnd = ph === "early" ? b14 : ph === "mid" ? b19 : endM;
-  const phGoal = Math.round(ideal(phEnd) / 50) * 50;
-  const since = p.sinceLast;
-  const late = L.isLate(todayK, now);
-  const camp = !late && tk < S.kcal - 250 && (since == null ? now.getHours() >= 10 && !d.entries.length : since >= 180);
-  return (
-    <section className="hero frame" aria-label={`Farm du jour : ${fint(tk)} sur ${fint(S.kcal)} kcal. ${chip.txt}.`}>
-      <button className="hero-in" onClick={() => ctx.go("food")}>
-        <div className="hero-top">
-          <span className="hero-k">Farm du jour</span>
-          <span className={"hero-chip " + chip.cls}>{chip.txt}</span>
-        </div>
-        <div className="hero-num">
-          <Coin size={30} />
-          <span className="hero-big"><Count v={tk} from0={boot} /></span>
-          <span className="hero-of">/ {fint(S.kcal)} kcal</span>
-        </div>
-        <div className="hero-sub">
-          {tk >= S.kcal ? "Objectif atteint. Tout ce que tu farmes en plus, c'est du bonus." : <>Il te manque <b>{fint(S.kcal - tk)}</b> gold{p.remaining > 0 && p.hoursLeft > 0.5 ? `, environ ${Math.max(1, Math.round(p.hoursLeft / 3))} repas` : ""}.</>}
-        </div>
-        <div className="hero-chart" ref={ref}>
-          <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
-            <defs>
-              <linearGradient id="hcA" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#E0B85C" stopOpacity=".34" /><stop offset="100%" stopColor="#E0B85C" stopOpacity="0" /></linearGradient>
-              <linearGradient id="hcL" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#8A6420" /><stop offset="55%" stopColor="#E0B85C" /><stop offset="100%" stopColor="#FFF1C4" /></linearGradient>
-              <filter id="hcG" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="4" /></filter>
-            </defs>
-            {bands.map(([a, b, id, lb]) => (
-              <g key={id}>
-                {id === ph && <rect x={X(Math.max(a, x0))} y={0} width={Math.max(0, X(Math.min(b, x1)) - X(Math.max(a, x0)))} height={H} fill="rgba(10,200,185,.06)" />}
-                {a > x0 && <line x1={X(a)} x2={X(a)} y1={4} y2={H} stroke="rgba(200,170,110,.18)" strokeDasharray="1 4" />}
-                <text x={X(Math.max(a, x0)) + 4} y={11} className={"hc-ph" + (id === ph ? " on" : "")}>{lb}</text>
-              </g>
-            ))}
-            <line x1="0" x2={W} y1={Y(S.kcal)} y2={Y(S.kcal)} stroke="rgba(240,230,210,.16)" strokeDasharray="2 5" />
-            <text x={W - 2} y={Y(S.kcal) - 5} textAnchor="end" className="hc-goal">{fint(S.kcal)}</text>
-            <line x1={X(wakeM)} y1={Y(0)} x2={X(endM)} y2={Y(S.kcal)} stroke="rgba(10,200,185,.55)" strokeWidth="1.4" strokeDasharray="4 5" />
-            <path d={area} fill="url(#hcA)" className="hc-area" />
-            <path d={path} fill="none" stroke="url(#hcL)" strokeWidth="6" opacity=".5" filter="url(#hcG)" className="hc-line" pathLength="1" />
-            <path d={path} fill="none" stroke="url(#hcL)" strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" className="hc-line" pathLength="1" />
-            {planned.map((q, i) => <circle key={"p" + i} cx={X(q.m)} cy={Y(ideal(q.m))} r="4" fill="#06101C" stroke="#7FE7DC" strokeWidth="1.5" strokeDasharray="2 2" />)}
-            {Math.abs(ahead) >= 120 && tk < S.kcal && p.frac >= 0.04 && (
-              <line x1={nowX + 9} x2={nowX + 9} y1={Y(cum)} y2={Y(expNow)} stroke={ahead > 0 ? "#3DD68C" : "#E84057"} strokeWidth="2.4" strokeLinecap="round" opacity=".9" />
-            )}
-            <line x1={nowX} x2={nowX} y1={padT - 4} y2={H} stroke="rgba(240,230,210,.2)" strokeDasharray="2 3" />
-            {meals.map((ml, i) => { const x = X(Math.max(x0, ml.m)); let c = 0; for (let j = 0; j <= i; j++) c += meals[j].k; return <rect key={i} x={Math.min(x + 7, X(x1)) - 3} y={Y(c) - 3} width="6" height="6" transform={`rotate(45 ${Math.min(x + 7, X(x1))} ${Y(c)})`} fill="#FFF1C4" className="hc-dot" />; })}
-            <circle cx={nowX} cy={Y(cum)} r="5" fill="#FFF1C4" className="hc-now" />
-          </svg>
-          <div className="hero-axis">{ticks.map((m, i) => <span key={i}>{i === 0 && d.sleep?.wake ? `Réveil ${L.hm(d.sleep.wake)}` : hhmm(m)}</span>)}</div>
-        </div>
-      </button>
-      <div className="hero-foot">
-        <span className="hf"><Icon n="sword" size={14} sw={2.2} /><b>{d.entries.length}</b> CS</span>
-        {tk < S.kcal && !late && <span className="hf"><Icon n="flag" size={14} sw={2.2} />{G.PHASES[ph].n}{ph !== "late" ? <> : <b>{fint(phGoal)}</b> à {G.PHASES[ph].end.replace(":00", " h")}</> : null}</span>}
-        {camp && <span className="hf camp"><Icon n="hourglass" size={14} sw={2.2} />Camp réapparu</span>}
-      </div>
-    </section>
-  );
-}
-
-function NightHero({ ctx, night }) {
-  const now = new Date(ctx.now);
-  const h = Math.max(0, (now - new Date(night.bed)) / 3.6e6);
-  const S = ctx.S;
-  const pct = L.clamp(h / S.sleep, 0, 1);
-  return (
-    <section className="hero frame night" aria-label={`Recall en cours depuis ${L.hm(night.bed)}`}>
-      <div className="hero-in">
-        <div className="hero-top"><span className="hero-k">Recall en cours</span><span className="hero-chip moon">depuis {L.hm(night.bed)}</span></div>
-        <div className="recall-ring" aria-hidden="true"><span style={{ "--p": pct }} /><Icon n="recall" size={30} sw={1.6} /></div>
-        <div className="hero-num center"><span className="hero-big">{fH(h)}</span></div>
-        <div className="hero-sub center">Tes PV se régénèrent. Objectif {fdec(S.sleep)} h. Le reste attendra demain.</div>
-      </div>
-    </section>
   );
 }
 
@@ -370,8 +188,8 @@ function Kills({ ctx, di }) {
   return (
     <section className="kills" aria-label="Objectifs du jour">
       <div className="sec-h"><h2>Objectifs du jour</h2><span className="sec-r">{di.kills ? <b className="kname">{G.KILL_NAMES[di.kills]}</b> : "0 sur 5"}</span></div>
-      <div className="khex-row">
-        {G.KILLS.map((k) => <KillHex key={k.id} k={k} done={di.kill[k.id]} pct={V[k.id].pct} val={V[k.id].val} onClick={V[k.id].go} />)}
+      <div className="squad">
+        {G.KILLS.map((k) => <KillCard key={k.id} k={k} done={di.kill[k.id]} pct={V[k.id].pct} val={V[k.id].val} onClick={V[k.id].go} />)}
       </div>
     </section>
   );
@@ -420,15 +238,19 @@ function Quests({ ctx }) {
   const q = G.quests(ctx.todayK);
   const n = q.filter((x) => x.done).length;
   return (
-    <section className="card quests" aria-label="Quêtes du jour">
-      <div className="sec-h"><h2>Quêtes du jour</h2><span className="sec-r"><b>{n}</b> sur {q.length}</span></div>
-      {q.map((x) => (
-        <div key={x.id} className={"qst" + (x.done ? " on" : "")}>
-          <span className="qst-c" aria-hidden="true">{x.done && <Icon n="check" size={12} sw={3} />}</span>
-          <span className="qst-tx"><b>{x.t}</b><span>{x.d}</span></span>
-          <span className="qst-xp">+{x.xp} XP</span>
-        </div>
-      ))}
+    <section className="parch quests" aria-label="Quêtes du jour">
+      <Torn seed={11} className="parch-edge" />
+      <div className="parch-in">
+        <div className="parch-h"><h2>Quêtes du jour</h2><span className="parch-n"><b>{n}</b> sur {q.length}</span></div>
+        {q.map((x) => (
+          <div key={x.id} className={"qst" + (x.done ? " on" : "")}>
+            <span className="qst-c" aria-hidden="true">{x.done && <Icon n="check" size={13} sw={3} />}</span>
+            <span className="qst-tx"><b>{x.t}</b><span>{x.d}</span></span>
+            <span className="qst-xp">+{x.xp} XP</span>
+          </div>
+        ))}
+      </div>
+      <Torn seed={12} flip className="parch-edge" />
     </section>
   );
 }
@@ -439,8 +261,9 @@ function Quests({ ctx }) {
 function BossCard({ ctx }) {
   const b = G.boss(ctx.todayK);
   return (
-    <button className={"card bossc" + (b.dead ? " dead" : b.enraged ? " rage" : "")} onClick={() => ctx.open({ type: "boss" })} aria-label={`Boss de la semaine, ${b.n} : ${b.dead ? "vaincu" : `${fint(b.left)} PV restants`}`}>
-      <span className="bossc-art"><BossArt id={b.id} size={60} dead={b.dead} /></span>
+    <button className={"bossc" + (b.dead ? " dead" : b.enraged ? " rage" : "")} onClick={() => ctx.open({ type: "boss" })} aria-label={`Boss de la semaine, ${b.n} : ${b.dead ? "vaincu" : `${fint(b.left)} PV restants`}`}>
+      <span className="bossc-dm" style={{ backgroundImage: damask("#FF4B5E", 0.22) }} aria-hidden="true" />
+      <span className="bossc-art"><BossArt id={b.id} size={96} dead={b.dead} /></span>
       <span className="bossc-m">
         <span className="bossc-k">Boss de la semaine{b.enraged ? ", enragé" : ""}</span>
         <span className="bossc-n">{b.n}</span>
@@ -506,21 +329,21 @@ function RankCard({ ctx }) {
   const go = () => ctx.go("profile", undefined, "rank");
   if (!rk) {
     return (
-      <button className="card rankc" onClick={go}>
-        <Emblem tier={0} size={58} dim />
+      <Deco as="button" className="rankc" onClick={go}>
+        <span className="rankc-e"><Emblem tier={0} size={64} dim /></span>
         <span className="rankc-m">
           <span className="rankc-k">Classé</span>
           <span className="rankc-n">Non classé</span>
           <span className="rankc-s">Note une pesée pour lancer ton classement : ton rang suivra ton poids jusqu'à {fdec(S.goalW)} kg, le rang Challenger.</span>
         </span>
-      </button>
+      </Deco>
     );
   }
   const last = rk.last;
   const ch = rk.cur.step >= G.STEPS;
   return (
-    <button className="card rankc" onClick={go} aria-label={`Rang ${rk.cur.name}, ${rk.cur.lp} LP. Voir le classement.`}>
-      <Emblem tier={rk.cur.tier} size={64} />
+    <Deco as="button" className="rankc" onClick={go} aria-label={`Rang ${rk.cur.name}, ${rk.cur.lp} LP. Voir le classement.`}>
+      <span className="rankc-e"><Emblem tier={rk.cur.tier} size={76} /></span>
       <span className="rankc-m">
         <span className="rankc-k">Classé, moyenne {fdec(last.sm, 1)} kg</span>
         <span className="rankc-n">{rk.cur.name}</span>
@@ -530,6 +353,6 @@ function RankCard({ ctx }) {
           {ch ? "Tu as atteint ton poids visé." : rk.promoAt ? <>Promotion vers le {short(rk.promoAt)} à ce rythme.</> : rk.rate != null && rk.rate <= 0.03 ? "Ça stagne : un shaker de plus par jour relance la prise." : <>Prochaine pesée : {wk === todayK ? "aujourd'hui" : L.fmtDay(wk, { weekday: "long" })}.</>}
         </span>
       </span>
-    </button>
+    </Deco>
   );
 }

@@ -5,6 +5,7 @@ import * as A from "./actions.js";
 import { sfx } from "./sfx.js";
 import { Sheet, Icon, Spinner, Empty, GramInput, PaceBar, Count, buzz } from "./ui.jsx";
 import { Coin } from "./hud.jsx";
+import { PosterFarm } from "./posters.jsx";
 
 const { fint, fdec } = L;
 
@@ -30,26 +31,11 @@ export function Food({ ctx, k, setK }) {
   const label = isToday ? "Aujourd'hui" : k === L.addDays(todayK, -1) ? "Hier" : L.cap(L.fmtDay(k));
   return (
     <div className="page" onTouchStart={onTS} onTouchEnd={onTE}>
-      <div className="daynav">
-        <button className="round-btn" onClick={() => setK(L.addDays(k, -1))} aria-label="Jour précédent"><Icon n="left" /></button>
-        <div className="daynav-l">
-          <div className="daynav-t">{label}</div>
-          {!isToday && <button className="link small" onClick={() => setK(todayK)}>Revenir à aujourd'hui</button>}
-        </div>
-        <button className="round-btn" disabled={isToday} onClick={() => setK(L.addDays(k, 1))} aria-label="Jour suivant"><Icon n="right" /></button>
-      </div>
-
-      <section className="panel farm-panel">
+      <PosterFarm ctx={ctx} k={k} setK={setK} label={label}>
         <PaceBar label="Gold (calories)" value={t.k} goal={S.kcal} expected={p && t.k < S.kcal ? p.expected : null} color="var(--goldbar)" unit="kcal" />
-        <PaceBar label="Protéines" value={t.p} goal={S.prot} color="var(--flesh)" unit="g" />
-        <div className="macro-row">
-          <span>Glucides <b>{fint(t.c)} g</b></span>
-          <span>Lipides <b>{fint(t.f)} g</b></span>
-          <span>CS <b>{d.entries.length}</b></span>
-          {p && t.k < S.kcal && <span className="muted">Le trait clair : où tu devrais en être</span>}
-        </div>
-        {d.legacy && !d.entries.length && <div className="hint">Journée notée avec l'ancienne version : {fint(d.legacy.kcal)} kcal au total.</div>}
-      </section>
+        {p && t.k < S.kcal && <span className="pf-hint">Le trait clair : où tu devrais en être maintenant.</span>}
+        {d.legacy && !d.entries.length && <div className="pf-hint">Journée notée avec l'ancienne version : {fint(d.legacy.kcal)} kcal au total.</div>}
+      </PosterFarm>
 
       {isToday && <BuildReco ctx={ctx} k={k} />}
 

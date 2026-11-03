@@ -5,6 +5,7 @@ import { RULES } from "./data.js";
 import { Sheet, Icon, buzz, GramInput } from "./ui.jsx";
 import { PostureSection } from "./posture.jsx";
 import { GBar, StackGrid } from "./hud.jsx";
+import { PosterArene } from "./posters.jsx";
 
 const { fint, fdec, fkg } = L;
 const shortDate = (k) => L.cap(L.fmtDay(k, { weekday: "short", day: "numeric", month: "short" }));
@@ -20,6 +21,7 @@ export function Sport({ ctx }) {
   const [view, setView] = useState(ctx.sub === "posture" ? "posture" : "gym");
   return (
     <div className="page">
+      <PosterArene ctx={ctx} />
       <div className="seg top-seg">
         <button className={view === "gym" ? "on" : ""} onClick={() => setView("gym")}>Salle</button>
         <button className={view === "posture" ? "on" : ""} onClick={() => setView("posture")}>Posture{!L.getDay(ctx.todayK).h.posture && <small>à faire</small>}</button>
@@ -52,19 +54,13 @@ function Gym({ ctx }) {
   const recent = [...rec.events].reverse().slice(0, 5);
   return (
     <>
-      <section className="panel mana-p">
-        <div className="sec-h"><h2>Ta mana de séance</h2><button className="sec-r link" onClick={() => ctx.open({ type: "codex", focus: "creatine" })}>Comment ça marche</button></div>
-        <GBar kind="mana big" ic="crystal" v={m.cur} max={m.max} text={<><em>Mana</em>{m.cur} / {m.max}</>} label={`Mana ${m.cur} sur ${m.max}`} />
-        <p className="mana-adv"><b>{adv.t}.</b> {adv.s}</p>
+      <section className="panel mana-parts-p">
+        <div className="sec-h"><h2>D'où vient ta mana</h2><button className="sec-r link" onClick={() => ctx.open({ type: "codex", focus: "creatine" })}>Comment ça marche</button></div>
         <div className="mana-parts">
           <span>Nuit <b>{Math.round(m.sl * 100)} %</b>{!m.sleepKnown && <small> estimée</small>}</span>
           <span>Farm d'hier <b>{Math.round(m.fy * 100)} %</b></span>
           <span>Farm du jour <b>{Math.round(m.ft * 100)} %</b></span>
         </div>
-        <button className="crea-row" onClick={() => ctx.open({ type: "item", id: "creatine" })} aria-label={`Créatine : ${cs.s} stacks sur 28, mana max plus ${m.max - 100}`}>
-          <span className="crea-l"><b>Créatine</b><small>+{m.max - 100} mana max, {cs.s}/28 stacks</small></span>
-          <StackGrid s={cs.s} lost={cs.lost7} cols={14} />
-        </button>
       </section>
 
       <section className="panel">
