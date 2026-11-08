@@ -14,7 +14,7 @@ const out = await build({
   legalComments: "none",
 });
 const js = out.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
-const css = ["src/styles.css", "src/kept.css", "src/poster.css"].map((f) => readFileSync(f, "utf8")).join("\n");
+const css = ["src/base.css", "src/client.css"].map((f) => readFileSync(f, "utf8")).join("\n");
 
 const html = `<!DOCTYPE html>
 <html lang="fr">
@@ -25,13 +25,13 @@ const html = `<!DOCTYPE html>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="Isma Daily"/>
-<meta name="theme-color" content="#0D0820"/>
+<meta name="theme-color" content="#05080D"/>
 <title>Isma Daily</title>
 <meta name="build" content="${new Date().toISOString()}"/>
 <link rel="apple-touch-icon" href="apple-touch-icon.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Cinzel:wght@500;600;700;800;900&family=Cinzel+Decorative:wght@700;900&family=Mr+Dafoe&family=Permanent+Marker&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=Cinzel:wght@600;700&display=swap" rel="stylesheet"/>
 <style>${css}</style>
 </head>
 <body>

@@ -4,7 +4,7 @@ import * as G from "./game.js";
 import { Icon, Count, buzz } from "./ui.jsx";
 import { GlowUp } from "./glowup.jsx";
 import { Portrait, Emblem, GBar, Grade, KillDots, Coin } from "./hud.jsx";
-import { pseudoOf, PosterProfil } from "./posters.jsx";
+import { TopBar, Meter, pseudoOf } from "./client.jsx";
 
 const { fint, fdec, fH } = L;
 const shortDate = (k) => L.cap(L.fmtDay(k, { weekday: "short", day: "numeric", month: "short" }));
@@ -17,12 +17,46 @@ export function Profile({ ctx }) {
   const [tab, setTab] = useState(init);
   return (
     <div className="page">
-      <PosterProfil ctx={ctx} />
+      <TopBar ctx={ctx} title="Profil" sub="Ton compte et ta progression" />
+      <Summoner ctx={ctx} />
       <div className="seg top-seg">
         {TABS.map(([id, l]) => <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}>{l}</button>)}
       </div>
       {tab === "rank" ? <Ranked ctx={ctx} /> : tab === "games" ? <Games ctx={ctx} /> : tab === "ach" ? <Achievements ctx={ctx} /> : <GlowUp ctx={ctx} />}
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Carte d'invocateur : niveau de compte, titre, rang, winrate, série
+// ─────────────────────────────────────────────────────────────
+function Summoner({ ctx }) {
+  const { S, todayK } = ctx;
+  const acc = G.account(todayK);
+  const rk = G.rank();
+  const wr = G.winrate(todayK, 30);
+  const sk = G.streak(todayK);
+  const name = pseudoOf(S);
+  return (
+    <section className="summ" aria-label={`${name}, niveau de compte ${acc.level}`}>
+      <div className="summ-top">
+        <Portrait level={acc.level} pct={acc.into / acc.need} size={72} letter={name[0]} label={`${name}, niveau de compte ${acc.level}`} />
+        <div className="summ-id">
+          <h2 className="summ-n">{name}</h2>
+          <span className="summ-t">{G.currentTitle(S, todayK)}</span>
+          <div className="summ-xp"><Meter v={acc.into} max={acc.need} label={`${fint(acc.into)} XP sur ${fint(acc.need)}`} /><span>{fint(acc.into)} / {fint(acc.need)} XP, niveau {acc.level + 1} ensuite</span></div>
+        </div>
+      </div>
+      <div className="summ-stats">
+        <div><span className="ss-l">Rang</span><b><Emblem tier={rk ? rk.cur.tier : 0} size={20} dim={!rk} />{rk ? rk.cur.name : "Non classé"}</b><span className="ss-s">{rk ? `${rk.cur.lp} LP` : "pèse-toi"}</span></div>
+        <div><span className="ss-l">Winrate 30 j</span><b>{wr.pct != null ? `${Math.round(wr.pct * 100)} %` : "–"}</b><span className="ss-s">{wr.w} V, {wr.l} D</span></div>
+        <div><span className="ss-l">Série</span><b>{sk.n} j</b><span className="ss-s">{sk.ready ? "Flash prêt" : `Flash dans ${sk.inDays} j`}</span></div>
+      </div>
+      <div className="summ-btns">
+        <button className="pill-btn" onClick={() => ctx.open({ type: "codex" })}><Icon n="book" size={15} /> Codex</button>
+        <button className="pill-btn" onClick={() => ctx.open({ type: "patch" })}><Icon n="scroll" size={15} /> Notes de patch</button>
+      </div>
+    </section>
   );
 }
 

@@ -4,8 +4,8 @@ import * as G from "./game.js";
 import * as A from "./actions.js";
 import { sfx } from "./sfx.js";
 import { Sheet, Icon, Spinner, Empty, GramInput, PaceBar, Count, buzz } from "./ui.jsx";
-import { Coin } from "./hud.jsx";
-import { PosterFarm } from "./posters.jsx";
+import { Coin, Glyph } from "./hud.jsx";
+import { TopBar, Meter, Sec } from "./client.jsx";
 
 const { fint, fdec } = L;
 
@@ -29,25 +29,45 @@ export function Food({ ctx, k, setK }) {
     }
   };
   const label = isToday ? "Aujourd'hui" : k === L.addDays(todayK, -1) ? "Hier" : L.cap(L.fmtDay(k));
+  const kc = t.k || 0;
+  const share = (g, f) => (kc > 0 ? Math.round(((g * f) / kc) * 100) : 0);
   return (
-    <div className="page" onTouchStart={onTS} onTouchEnd={onTE}>
-      <PosterFarm ctx={ctx} k={k} setK={setK} label={label}>
-        <PaceBar label="Gold (calories)" value={t.k} goal={S.kcal} expected={p && t.k < S.kcal ? p.expected : null} color="var(--goldbar)" unit="kcal" />
-        {p && t.k < S.kcal && <span className="pf-hint">Le trait clair : où tu devrais en être maintenant.</span>}
-        {d.legacy && !d.entries.length && <div className="pf-hint">Journée notée avec l'ancienne version : {fint(d.legacy.kcal)} kcal au total.</div>}
-      </PosterFarm>
+    <div className="page food" onTouchStart={onTS} onTouchEnd={onTE}>
+      <TopBar ctx={ctx} title="Farm" sub="Ton journal de repas" />
+      <div className="daynav">
+        <button className="dn-b" onClick={() => setK(L.addDays(k, -1))} aria-label="Jour précédent"><Icon n="left" size={18} /></button>
+        <div className="daynav-t">{label}</div>
+        <button className="dn-b" disabled={isToday} onClick={() => setK(L.addDays(k, 1))} aria-label="Jour suivant"><Icon n="right" size={18} /></button>
+      </div>
+      {!isToday && <button className="link small back-today" onClick={() => setK(todayK)}>Revenir à aujourd'hui</button>}
+
+      <section className="farm-sum" aria-label={`Farm, ${label} : ${fint(kc)} sur ${fint(S.kcal)} kcal`}>
+        <div className="today-k"><span className="kick">Gold du jour</span><span className={"pace" + (kc >= S.kcal ? " ok" : "")}>{kc >= S.kcal ? "Objectif atteint" : `${fint(S.kcal - kc)} kcal à farmer`}</span></div>
+        <div className="today-n"><Glyph n="coin" size={20} className="today-coin" /><b><Count v={kc} /></b><span>/ {fint(S.kcal)} kcal</span></div>
+        <Meter v={kc} max={S.kcal} mark={p && kc < S.kcal ? p.expected / S.kcal : null} label={`${fint(kc)} sur ${fint(S.kcal)} kcal`} />
+        {p && kc < S.kcal && <p className="hint">Le trait clair : où tu devrais en être maintenant.</p>}
+        <div className="macros">
+          <div className={"mac prot" + (t.p >= S.prot ? " ok" : "")}><span className="mac-l">Protéines</span><b>{fint(t.p)}<small> / {fint(S.prot)} g</small></b><Meter v={t.p} max={S.prot} tone="orange" /></div>
+          <div className="mac carb"><span className="mac-l">Glucides</span><b>{fint(t.c)}<small> g</small></b><span className="mac-s">{share(t.c, 4)} % des kcal</span></div>
+          <div className="mac fat"><span className="mac-l">Lipides</span><b>{fint(t.f)}<small> g</small></b><span className="mac-s">{share(t.f, 9)} % des kcal</span></div>
+        </div>
+        {d.legacy && !d.entries.length && <p className="hint">Journée notée avec l'ancienne version : {fint(d.legacy.kcal)} kcal au total.</p>}
+      </section>
+
+      <button className="cta-main" onClick={() => ctx.open({ type: "add", k })}><Icon n="plus" size={18} /> Ajouter un repas</button>
+
+      <Sec title="Journal" right={d.entries.length ? `${d.entries.length} repas` : null} className="journal">
+        {d.entries.length > 0 ? (
+          <div className="timeline">
+            {d.entries.map((e) => <EntryRow key={e.id} e={e} k={k} ctx={ctx} />)}
+          </div>
+        ) : (
+          <Empty title="Aucun repas ce jour-là" text="Ajoute ton premier repas avec le bouton au-dessus." />
+        )}
+      </Sec>
 
       {isToday && <BuildReco ctx={ctx} k={k} />}
 
-      {d.entries.length > 0 ? (
-        <div className="timeline">
-          {d.entries.map((e) => <EntryRow key={e.id} e={e} k={k} ctx={ctx} />)}
-        </div>
-      ) : (
-        <Empty title="Aucun CS pour ce jour" text="Ajoute ton premier repas avec le bouton +." />
-      )}
-
-      <button className="wide-btn" onClick={() => ctx.open({ type: "add", k })}><Icon n="plus" size={18} /> Ajouter un repas</button>
       <DexButton ctx={ctx} k={k} />
       <p className="hint center">Glisse vers la droite ou la gauche pour changer de jour.</p>
     </div>
@@ -88,26 +108,40 @@ function DexButton({ ctx, k }) {
   );
 }
 
+/** Le moment du repas : une couleur par créneau pour distinguer les repas */
+const SLOTS = [
+  { id: "matin", n: "matin", from: 300, to: 630 },
+  { id: "midi", n: "midi", from: 630, to: 870 },
+  { id: "aprem", n: "après-midi", from: 870, to: 1080 },
+  { id: "soir", n: "soir", from: 1080, to: 1320 },
+];
+function mealSlot(t) {
+  const [h, m] = String(t || "12:00").split(":").map(Number);
+  const x = h * 60 + (m || 0);
+  return SLOTS.find((s) => x >= s.from && x < s.to) || { id: "nuit", n: "nuit" };
+}
 function EntryRow({ e, k, ctx }) {
   const [open, setOpen] = useState(false);
   const tot = L.entryTot(e);
   const upd = (fn) => L.updDay(k, (d) => ({ ...d, entries: d.entries.map((x) => (x.id === e.id ? fn(x) : x)) }));
   const fav = () => {
     const name = window.prompt("Nom du favori :", e.label);
-    if (name && name.trim()) { const undo = L.snapKey("favs"); L.saveFav(name.trim(), e.items); ctx.say("Ajouté à tes favoris ⭐", { undo }); }
+    if (name && name.trim()) { const undo = L.snapKey("favs"); L.saveFav(name.trim(), e.items); ctx.say("Ajouté à tes favoris", { undo }); }
   };
   const rr = G.rarity(tot);
+  const slot = mealSlot(e.t);
   return (
-    <div className={"tl-row r-" + rr + (open ? " open" : "")}>
-      <div className="tl-time">{e.t}</div>
+    <div className={"tl-row r-" + rr + " s-" + slot.id + (open ? " open" : "")}>
+      <div className="tl-time">{e.t}<small>{slot.n}</small></div>
       <div className="tl-dot" />
       <div className="tl-card">
         <button className="tl-head" onClick={() => setOpen(!open)} aria-expanded={open}>
           <div className="tl-main">
             <div className="tl-title">{e.label}<span className="tl-rar">{G.RARITY[rr].n}</span></div>
-            <div className="tl-items">{e.items.map((i) => i.name.replace(/ \(.*\)/, "")).join(", ")}</div>
+            <div className="tl-items">{e.items.filter((i) => i.fid !== "eau").map((i) => `${i.name.replace(/ \(.*\)/, "")}${i.g ? ` ${fint(i.g)} g` : ""}`).join(", ")}</div>
+            <div className="tl-mac"><span>P <b>{fint(tot.p)}</b></span><span>G <b>{fint(tot.c)}</b></span><span>L <b>{fint(tot.f)}</b></span></div>
           </div>
-          <div className="tl-kcal"><b><Coin size={13} />{fint(tot.k)}</b><span>{fint(tot.p)} g prot</span></div>
+          <div className="tl-kcal"><b>{fint(tot.k)}</b><span>kcal</span><Icon n={open ? "chevron" : "pen"} size={14} /></div>
         </button>
         {open && (
           <div className="tl-body">
@@ -121,7 +155,7 @@ function EntryRow({ e, k, ctx }) {
             <div className="chips">
               <button className="chip" onClick={() => ctx.open({ type: "add", k, entryId: e.id })}>＋ Aliment</button>
               {k !== ctx.todayK && <button className="chip" onClick={() => { const undo = L.snapDay(ctx.todayK); L.addEntry(ctx.todayK, e.items, e.label); buzz(10); ctx.say("Refait aujourd'hui", { undo }); }}>↻ Refaire aujourd'hui</button>}
-              <button className="chip" onClick={fav}>⭐ En favori</button>
+              <button className="chip" onClick={fav}><Icon n="star" size={14} /> En favori</button>
               <button className="chip danger" onClick={() => A.deleteEntry(ctx, k, e)}>Supprimer</button>
             </div>
           </div>

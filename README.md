@@ -1,10 +1,13 @@
 # Isma Daily
 
-Patch 8.1 « L'Affiche » : chaque onglet s'ouvre sur une affiche peinte dans le téléphone à partir des données du jour.
-Base : un ciel qui suit l'heure (aube, journée, fin d'après-midi, crépuscule, nuit) avec le gold du jour derrière
-les montagnes, et le recall sous une lune qui se remplit avec la nuit. Farm : affiche de jour de match contre le boss
-de la semaine. Arène : damas cramoisi. Profil : carte d'invocateur art déco. Annonces en tags néon. Tous les visuels
-sont originaux et calculés (aucune image téléchargée, aucun art de Riot).
+Patch 9 « Le Client » : l'interface s'inspire d'un client de jeu compétitif. Fond nuit, surfaces plates,
+séparations fines, l'or pour l'essentiel et le bleu pour la mana. Plus d'affiches peintes, de parchemins ni de
+particules : un seul système visuel pour les quatre onglets. Base devient un centre de contrôle (gold du jour,
+5 objectifs en lignes, inventaire avec rareté selon les stacks, quêtes, semaine, boss, rang), Farm met le journal
+des repas en avant, l'Arène a une sélection de séance façon champion select. Le patch corrige aussi des mécaniques
+qui affichaient l'inverse de ce qu'elles faisaient (mana « pleine » trop tôt, « journée bouclée » avec des quêtes
+restantes, alerte de séance pour un exercice fait en plus, totaux arrondis qui ne tombaient pas juste).
+Les icônes peintes des items sont dans `art/items/`. Aucun art de Riot.
 
 Patch 8 « Le Reforge » : le tracker devient une partie de League of Legends, calculée à partir des vraies données.
 Les calories sont le gold du farm du jour, le sommeil remplit les PV (le recall), la créatine est un item à stacks
@@ -21,12 +24,13 @@ Ouvert sur iPhone depuis l'écran d'accueil : https://contactvisulink-stack.gith
   - `src/game.js` : le moteur de jeu (stacks, mana, rang, boss, quêtes, succès). Rien n'est stocké en double :
     tout se recalcule depuis les journées notées.
   - `src/content.js` : le codex, les astuces de chargement et les notes de patch.
-  - `src/art.jsx` : les illustrations (ciels et fumées peints au bruit de simplex, montagnes, lune, cadres art déco,
-    papier déchiré, damas, graffitis, grain). `src/posters.jsx` : les affiches des quatre onglets.
-  - `src/glyphs.jsx` : les pictogrammes à plat et à facettes (glyphes du jeu, items, emblèmes de rang, boss, pièce).
-    Les icônes au trait sont dans `src/ui.jsx`.
-  - `src/poster.css` : l'habillage du patch 8.1 (ambiances par onglet). `src/styles.css` et `src/kept.css` : le reste.
-  - `test/e2e8.py`, `test/shots8.py` et `test/shots81.py` : le parcours complet et les captures.
+  - `src/client.jsx` : les pièces communes de l'interface (en-tête, jauges, anneaux d'état, sections).
+  - `src/glyphs.jsx` : les pictogrammes (glyphes du jeu, items, emblèmes de rang, boss, pièce). Les items peints
+    viennent de `art/items/`. Les icônes au trait sont dans `src/ui.jsx`.
+  - `src/base.css` : remise à zéro, boutons, formulaires et fiches. `src/client.css` : les couleurs, les polices
+    et les écrans principaux. Les skins ne changent que la couleur d'accent.
+  - `test/e2e8.py` et `test/shots8.py` : le parcours complet et les captures. `test/mech9.test.mjs` : les mécaniques
+    corrigées au patch 9 (`node test/mech9.test.mjs`).
 - `radar/` : Radar Perth, l'appli des sorties à Perth (https://contactvisulink-stack.github.io/Tracker-/radar/).
   Les sorties sont dans `radar/data/` et une tâche planifiée Claude les met à jour chaque matin.
   `radar/data/prefs.json` garde les envies et retours d'Isma, lus à chaque mise à jour.

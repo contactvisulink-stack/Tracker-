@@ -239,7 +239,8 @@ export function parseFoodText(text) {
 // ═════════════════════════════════════════════════════════════
 // Calculs nutrition
 // ═════════════════════════════════════════════════════════════
-export const itemTot = (it) => { const m = (+it.g || 0) / 100, P = it.per || {}; return { k: (P.k || 0) * m, p: (P.p || 0) * m, c: (P.c || 0) * m, f: (P.f || 0) * m }; };
+// Arrondi à l'aliment : ce que tu lis sur chaque aliment s'additionne exactement en total du repas et du jour.
+export const itemTot = (it) => { const m = (+it.g || 0) / 100, P = it.per || {}; return { k: Math.round((P.k || 0) * m), p: Math.round((P.p || 0) * m), c: Math.round((P.c || 0) * m), f: Math.round((P.f || 0) * m) }; };
 export const sumTot = (arr) => arr.reduce((a, t) => ({ k: a.k + t.k, p: a.p + t.p, c: a.c + t.c, f: a.f + t.f }), { k: 0, p: 0, c: 0, f: 0 });
 export const itemsTot = (items) => sumTot((items || []).map(itemTot));
 export const entryTot = (e) => itemsTot(e.items);
@@ -1003,9 +1004,17 @@ export function sessionDiff(day) {
   const prog = getProgram().find((p) => p.day === day);
   if (!prog) return null;
   const keys = new Set(prog.exs.map((e) => e.key));
-  const newEx = w.exercises.filter((e) => (!e.key || !keys.has(e.key)) && e.sets.some((s) => !s.warm && s.r > 0));
+  let newEx = w.exercises.filter((e) => (!e.key || !keys.has(e.key)) && e.sets.some((s) => !s.warm && s.r > 0));
   if (!newEx.length) return null;
   const missing = prog.exs.filter((pe) => !w.exercises.some((e) => e.key === pe.key));
+  // Tout le programme est fait et il y a un exercice en plus : c'est un bonus volontaire, pas un changement.
+  // On ne propose de l'ajouter au programme que s'il revient (au moins 2 des 3 dernières séances de ce type).
+  if (!missing.length) {
+    const last = ws.filter((x) => x.session === day).slice(0, 3); // les plus récentes d'abord
+    const n = (e) => norm(e.name);
+    newEx = newEx.filter((e) => last.filter((x) => x.exercises.some((y) => n(y) === n(e))).length >= 2);
+    if (!newEx.length) return null;
+  }
   if ((store.get("diffSeen", {}) || {})[w.id + ":" + day]) return null;
   return { w, day, newEx, missing };
 }

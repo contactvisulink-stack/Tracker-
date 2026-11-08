@@ -27,6 +27,8 @@ export function ItemSheet({ ctx, id }) {
   const r = id === "water" ? WATER : L.allRituals(S).find((x) => x.id === id);
   if (!r) return null;
   const st = G.stacks(id, todayK);
+  const rar = G.itemRarity(st.s || 0);
+  const nextR = G.RARITY_IT.find((t) => t.min > (st.s || 0));
   const inf = info(r);
   const d = L.getDay(todayK);
   const codex = inf.codex && CODEX.find((c) => c.id === inf.codex);
@@ -43,10 +45,10 @@ export function ItemSheet({ ctx, id }) {
         {codex && <button className="cta ghost shrink" onClick={() => ctx.open({ type: "codex", focus: codex.id })}>Codex</button>}
         <button className={"cta " + (st.done && id !== "water" && id !== "posture" ? "ghost" : "sun")} onClick={act}>{btn}</button>
       </div>}>
-      <div className="tip">
+      <div className="tip" style={{ "--rc": id === "water" ? "var(--line-2)" : rar.c }}>
         <div className="tip-h">
           <span className="tip-slot" style={{ "--ic": r.color }}><ItemArt id={r.art || r.id} color={r.color} size={54} letter={r.label} /></span>
-          <span className="tip-n"><b>{r.label}</b><small>{inf.type}</small></span>
+          <span className="tip-n">{id !== "water" && <span className="tip-rar">{rar.n}</span>}<b>{r.label}</b><small>{inf.type}</small></span>
           {id !== "water" && <span className="tip-s"><b>{st.s}</b><small>stacks</small></span>}
         </div>
         <div className="tip-stats">
@@ -63,6 +65,7 @@ export function ItemSheet({ ctx, id }) {
               <span>Meilleure série <b>{st.bestRun} j</b></span>
               {st.risk && <span className="warn">Pas fait aujourd'hui : tu perds 1 stack ce soir</span>}
             </div>
+            <p className="tip-rare">Rareté selon tes stacks : <b className="r-rare">Rare</b> à 7, <b className="r-epic">Épique</b> à 14, <b className="r-legend">Légendaire</b> à 21.{nextR ? ` Encore ${nextR.min - st.s} pour passer ${nextR.n}.` : " Tu es au sommet."}</p>
           </>
         )}
         <div className="tip-days" aria-label="Les 14 derniers jours">
@@ -163,7 +166,7 @@ export function BossSheet({ ctx }) {
           );
         })}
       </div>
-      <p className="hint">{b.dead ? `Vaincu ${L.fmtDay(b.deadAt, { weekday: "long" })}. Tout ce que tu farmes en plus cette semaine, c'est du bonus.` : `PV = 7 jours de ton objectif. Chaque kcal lui retire 1 PV. Il te faut ${fint(b.need)} kcal par jour d'ici dimanche${b.enraged ? " : il est enragé, c'est serré." : "."}`}</p>
+      <p className="hint">{b.dead ? `Vaincu ${L.fmtDay(b.deadAt, { weekday: "long" })}. Tout ce que tu farmes en plus cette semaine, c'est du bonus.` : `Ses PV valent 7 jours de ton objectif (7 × ${fint(ctx.S.kcal)} kcal). Chaque kcal mangée cette semaine lui retire 1 PV. ${G.bossNeed(b)}${b.enraged ? " Il est enragé : c'est serré." : ""}`}</p>
     </Sheet>
   );
 }

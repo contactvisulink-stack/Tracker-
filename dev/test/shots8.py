@@ -11,7 +11,7 @@ URL = "file://" + os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else "../inde
 ONLY = sys.argv[3].split(",") if len(sys.argv) > 3 else None
 data = build()
 ALL_ACH = ["first_blood","farmer","farmer7","farmer30","streak5","streak14","legendary","bigday","prot7","dex25","dex50","boss1","boss4","sleep1","sleep7","early_bed","clock5","vision7","cast1","triple","regular4","ult1","ult10","plus1","posture10","crea28","habit21","glow","promo","tier","half","challenger","penta","penta5"]
-SEEN = {"t2:seen": {"v": 1, "ach": ALL_ACH, "lvl": 999, "step": 99, "boss": "2026-11-02", "patch": "8.1"}, "t2:loadSeen": "2026-11-03", "t2:ann:2026-11-03": {"ids": ["prot", "sleep", "crea", "train"]}}
+SEEN = {"t2:seen": {"v": 1, "ach": ALL_ACH, "lvl": 999, "step": 99, "boss": "2026-11-02", "patch": "9.0"}, "t2:loadSeen": "2026-11-03", "t2:ann:2026-11-03": {"ids": ["prot", "sleep", "crea", "train"]}}
 errors = []
 
 def scene(b, name, when, extra=None, seen=True, full=True, act=None):

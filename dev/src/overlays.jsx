@@ -8,7 +8,6 @@ import * as G from "./game.js";
 import { TIPS, PATCH } from "./content.js";
 import { Icon } from "./ui.jsx";
 import { Emblem, BossArt, Grade, KillHex, StackGrid } from "./hud.jsx";
-import { Backdrop, Particles, Deco, Orn, Torn, damask } from "./art.jsx";
 
 const { fint, fH, cap } = L;
 const pseudo = (S) => (S.pseudo || "Isma").trim() || "Isma";
@@ -26,10 +25,6 @@ export function LoadingScreen({ ctx, onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 2700); return () => clearTimeout(t); }, []);
   return (
     <div className="load" onClick={onDone} role="dialog" aria-label="Écran de chargement, touche pour passer">
-      <Backdrop id={ctx.mood === "astral" ? "sang" : ctx.mood} seed={9} className="pa" />
-      <div className="load-dm" style={{ backgroundImage: damask("#FFFFFF", 0.1) }} aria-hidden="true" />
-      <div className="load-paper" aria-hidden="true" />
-      <Particles kind="ember" n={12} seed={3} />
       <div className="load-head">
         <span className="load-k">Partie du jour</span>
         <span className="load-d">{cap(L.fmtDay(todayK))}</span>
@@ -72,13 +67,10 @@ export function EndGame({ ctx, k, live, onClose }) {
   ];
   return (
     <div className={"endg " + (di.win ? "win" : "lose")} role="dialog" aria-modal="true" aria-label={`${res}, note ${di.grade}`}>
-      <Backdrop id={di.win ? "or" : "sang"} seed={di.win ? 5 : 8} className="pa" />
-      <div className="endg-rays" aria-hidden="true" />
-      <Particles kind={di.win ? "bokeh" : "ember"} n={10} seed={2} />
-      <Deco className="endg-in">
+      <div className="endg-in">
         <div className="endg-k">{today ? "Fin de partie" : cap(L.fmtDay(k))}</div>
         <h2 className="endg-t">{today && !di.win && !live ? "En cours" : res}</h2>
-        <Orn className="endg-orn" />
+        <i className="endg-line" aria-hidden="true" />
         <div className="endg-g"><Grade g={di.grade} size="lg" /><span>{G.KILL_NAMES[di.kills] || "Aucun kill"}</span></div>
         <div className="endg-kills">{G.KILLS.map((x) => <KillHex key={x.id} k={x} done={di.kill[x.id]} />)}</div>
         <div className="endg-stats">
@@ -101,7 +93,7 @@ export function EndGame({ ctx, k, live, onClose }) {
           </div>
         )}
         <button className="cta sun full" onClick={onClose}>{live ? "Bonne nuit" : "Fermer"}</button>
-      </Deco>
+      </div>
     </div>
   );
 }
@@ -116,9 +108,7 @@ export function Welcome({ ctx, onClose, onPatch }) {
   const st = G.careerStats(todayK);
   return (
     <div className="welc" role="dialog" aria-modal="true" aria-label="Ton compte a été importé">
-      <Backdrop id="night" seed={14} className="pa" />
-      <Particles kind="star" n={14} seed={7} />
-      <Deco className="welc-in">
+      <div className="welc-in">
         <div className="welc-k">Patch {PATCH.v}</div>
         <h2 className="welc-t">{PATCH.n}</h2>
         <p className="welc-p">Ton historique a été rejoué jour par jour. Voilà ton compte, calculé à partir de tes vraies données.</p>
@@ -137,7 +127,7 @@ export function Welcome({ ctx, onClose, onPatch }) {
           <button className="cta ghost" onClick={onPatch}>Notes de patch</button>
           <button className="cta sun" onClick={onClose}>Jouer</button>
         </div>
-      </Deco>
+      </div>
     </div>
   );
 }

@@ -6,7 +6,6 @@
 import React, { useId, useRef } from "react";
 import * as L from "./lib.js";
 import * as G from "./game.js";
-import { Doodles, Drips } from "./art.jsx";
 import { Icon, buzz } from "./ui.jsx";
 
 const uid = () => useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -102,9 +101,10 @@ export function useHold(onHold, onTap, ms = 430) {
 export function ItemSlot({ r, st, onTap, onHold, sub, count, big }) {
   const h = useHold(onHold, onTap);
   const n = count ?? st.s;
+  const rar = G.itemRarity(st.s || 0);
   return (
-    <button className={"islot" + (st.done ? " on" : "") + (st.risk ? " risk" : "") + (big ? " big" : "")} style={{ "--ic": r.color }} {...h}
-      aria-label={`${r.label}${st.done ? ", fait aujourd'hui" : ", à faire"}${st.s ? `, ${st.s} stack${st.s > 1 ? "s" : ""}` : ""}. Appui long pour la fiche.`}>
+    <button className={"islot r-" + rar.id + (st.done ? " on" : "") + (st.risk ? " risk" : "") + (big ? " big" : "")} style={{ "--ic": r.color, "--rc": rar.c }} {...h}
+      aria-label={`${r.label}${st.done ? ", fait aujourd'hui" : ", à faire"}${st.s ? `, ${st.s} stack${st.s > 1 ? "s" : ""}, ${rar.n.toLowerCase()}` : ""}. Appui long pour la fiche.`}>
       <span className="islot-f"><span className="islot-in"><ItemArt id={r.art || r.id} color={r.color} size={big ? 46 : 36} letter={r.label} /></span></span>
       {n !== "" && n != null && n !== 0 && <span className="islot-n">{n}</span>}
       {st.risk && <span className="islot-pip" aria-hidden="true">!</span>}
@@ -127,17 +127,12 @@ export function StackGrid({ s, max = G.STACK_MAX, lost = 0, cols = 7 }) {
 // ═════════════════════════════════════════════════════════════
 export function Announcer({ a }) {
   if (!a) return null;
-  const seed = [...String(a.t)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
   return (
     <div key={a.id} className={"ann t-" + (a.tone || "gold") + (a.big ? " big" : "")} role="status" aria-live="polite">
-      <div className="ann-glow" aria-hidden="true" />
-      <Doodles seed={seed} n={a.big ? 7 : 5} />
+      <div className="ann-band" aria-hidden="true" />
       {a.art && <div className="ann-art">{a.art}</div>}
       {a.kicker && <div className="ann-k">{a.kicker}</div>}
-      <div className="ann-tag">
-        <div className="ann-t">{a.t}</div>
-        <Drips seed={seed + 1} n={a.big ? 8 : 6} />
-      </div>
+      <div className="ann-t">{a.t}</div>
       {a.s && <div className="ann-s">{a.s}</div>}
     </div>
   );

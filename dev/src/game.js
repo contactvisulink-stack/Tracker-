@@ -233,11 +233,29 @@ export function mana(k, now) {
   const frac = 0.45 * sl + 0.35 * fy + 0.2 * ft;
   return { max, cur: Math.round(max * frac), frac, crea: cs, sl, fy, ft, sleepKnown };
 }
+/** Rareté d'un item : elle monte avec tes stacks (Rare à 7, Épique à 14, Légendaire à 21) */
+export const RARITY_IT = [
+  { id: "common", n: "Commun", c: "#8E97A6", min: 0 },
+  { id: "rare", n: "Rare", c: "#3CB4E6", min: 7 },
+  { id: "epic", n: "Épique", c: "#A87BEA", min: 14 },
+  { id: "legend", n: "Légendaire", c: "#E8853A", min: 21 },
+];
+export const itemRarity = (s = 0) => [...RARITY_IT].reverse().find((t) => s >= t.min) || RARITY_IT[0];
+
+/** Conseil de séance selon la mana. « Pleine » seulement quand elle l'est vraiment (97 % et plus). */
 export function manaAdvice(m) {
   const f = m.cur / m.max;
-  if (f >= 0.85) return { t: "Full mana", s: "Va chercher le +1 rep sur chaque exercice." };
-  if (f >= 0.65) return { t: "Mana correcte", s: "Vise le +1 rep sur les gros mouvements, garde le reste." };
-  return { t: "Low mana", s: "Garde tes charges et soigne la technique. Pas de record aujourd'hui." };
+  if (f >= 0.97) return { t: "Mana pleine", lv: "full", s: "Va chercher le +1 rep sur chaque exercice." };
+  if (f >= 0.8) return { t: "Mana haute", lv: "high", s: "Vise le +1 rep sur les gros mouvements, garde le reste." };
+  if (f >= 0.6) return { t: "Mana correcte", lv: "mid", s: "Garde tes charges. Une rep de plus seulement si elle passe propre." };
+  return { t: "Mana basse", lv: "low", s: "Garde tes charges et soigne la technique. Pas de record aujourd'hui." };
+}
+
+/** La phrase du boss. Le dernier jour, on ne parle plus de « par jour ». */
+export function bossNeed(b) {
+  if (b.dead) return "Vaincu. Le reste de la semaine, c'est du bonus.";
+  if (b.daysLeft <= 1) return `Dernier jour : il lui reste ${L.fint(b.left)} PV. Mange encore ${L.fint(b.left)} kcal aujourd'hui pour le vaincre.`;
+  return `Il lui reste ${L.fint(b.left)} PV sur ${b.daysLeft} jours, aujourd'hui compris : environ ${L.fint(b.need)} kcal par jour.`;
 }
 
 // ═════════════════════════════════════════════════════════════
@@ -656,12 +674,12 @@ export function titles(k) {
 export const currentTitle = (S, k) => { const list = titles(k); const t = list.find((x) => x.id === S.title && x.ok); return (t || list[0]).n; };
 
 export const SKINS = [
-  { id: "hextech", n: "Affiche", d: "Une ambiance par onglet, le ciel de la Base suit l'heure.", req: null },
-  { id: "neon", n: "Graffiti", d: "Néon et tags sur tous les onglets.", req: { lvl: 5 } },
-  { id: "infernal", n: "Infernal", d: "Braise et fumée partout.", req: { lvl: 15 } },
-  { id: "abysse", n: "Abysse", d: "Nuit turquoise partout.", req: { lvl: 25 } },
-  { id: "prestige", n: "Prestige", d: "Or et art déco partout, dès le rang Or.", req: { tier: 3 } },
-  { id: "challenger", n: "Challenger", d: "Le ciel étoilé partout, au poids visé.", req: { tier: 9 } },
+  { id: "hextech", n: "Hextech", d: "Or et nuit, le client d'origine.", req: null },
+  { id: "neon", n: "Néon", d: "L'accent passe au rose néon.", req: { lvl: 5 } },
+  { id: "infernal", n: "Infernal", d: "L'accent passe à la braise.", req: { lvl: 15 } },
+  { id: "abysse", n: "Abysse", d: "L'accent passe au turquoise.", req: { lvl: 25 } },
+  { id: "prestige", n: "Prestige", d: "Un or plus clair, dès le rang Or.", req: { tier: 3 } },
+  { id: "challenger", n: "Challenger", d: "Bleu glacier, au poids visé.", req: { tier: 9 } },
 ];
 export const skinReq = (s) => (!s.req ? "" : s.req.lvl ? `Niveau ${s.req.lvl}` : `Rang ${TIERS[s.req.tier].n}`);
 export function skinOk(s, acc, rk) {
@@ -677,7 +695,7 @@ export function coachContext(k) {
     const rk = rank(), b = boss(k), cs = stacks("creatine", k), sk = streak(k), acc = account(k), di = dayInfo(k);
     const parts = [
       rk ? `rang ${rk.cur.name} (${rk.cur.lp} LP), poids de forme ${L.fdec(rk.last.sm, 1)} kg${rk.promoAt ? `, promotion prévue vers le ${L.fmtDay(rk.promoAt, { day: "numeric", month: "long" })}` : ""}` : "pas encore classé",
-      `boss de la semaine ${b.n} : ${b.dead ? "déjà vaincu" : `${fint(b.left)} PV restants, il faut ${fint(b.need)} kcal par jour d'ici dimanche`}`,
+      `boss de la semaine ${b.n} : ${bossNeed(b)}`,
       `créatine ${cs.s}/${STACK_MAX} stacks`,
       `${KILL_NAMES[di.kills] || "aucun kill"} aujourd'hui (${di.kills}/5), note ${di.grade}`,
       `série de ${sk.n} victoire${sk.n > 1 ? "s" : ""}${sk.ready ? ", Flash prêt" : ""}`,

@@ -215,32 +215,37 @@ const PATCH80 = {
 };
 /** Notes de patch de cette version */
 export const PATCH = {
-  v: "8.1",
-  n: "L'Affiche",
+  v: "9.0",
+  n: "Le Client",
   date: "novembre 2026",
-  intro: "Même partie, nouveau visuel. Chaque onglet s'ouvre sur une affiche peinte à partir de tes données, comme un poster d'événement. Tes données et les règles du jeu n'ont pas bougé.",
+  intro: "Même partie, nouvelle interface. L'appli s'inspire d'un client de jeu compétitif : fond nuit, moins de cadres, plus d'espace, l'or réservé à ce qui compte. Tes données, tes objectifs et les règles de progression n'ont pas bougé. Quelques mécaniques ont été corrigées : elles affichaient parfois l'inverse de ce qu'elles faisaient.",
   sections: [
-    { t: "Les affiches", items: [
-      ["NOUVEAU", "Base : le ciel suit l'heure de ta journée. Aube, journée, fin d'après-midi, crépuscule, nuit."],
-      ["NOUVEAU", "Ton gold du jour en très grand, avec les montagnes qui passent devant."],
-      ["NOUVEAU", "La nuit, le recall sous la lune : elle se remplit à mesure que tu dors."],
-      ["NOUVEAU", "Farm : une affiche de jour de match, toi contre le boss de la semaine."],
-      ["NOUVEAU", "Arène : damas cramoisi et ta mana de séance en grand."],
-      ["NOUVEAU", "Profil : ta carte d'invocateur dans un cadre art déco, l'emblème de ton rang devant."],
+    { t: "Le client", items: [
+      ["REFONTE", "Un seul système visuel partout : fond nuit, surfaces plates, séparations fines. L'or pour l'essentiel, le bleu pour la mana et les actions."],
+      ["REFONTE", "Fini les affiches peintes, les parchemins, la fumée et les particules. Les icônes peintes des items restent."],
+      ["NOUVEAU", "Un en-tête commun à chaque onglet : ton médaillon avec ton niveau de compte (le même partout), le coach et les runes."],
+      ["REFONTE", "Barre du bas plus discrète, bouton + plus petit. Les jauges se remplissent à l'ouverture de chaque onglet."],
+      ["AJUSTEMENT", "Skins : seul l'accent change (Néon, Infernal, Abysse, Prestige, Challenger). L'interface reste la même et reste lisible."],
     ] },
-    { t: "Les pièces du jeu", items: [
-      ["REFONTE", "Objectifs du jour : cinq cartes d'escouade qui se remplissent, puis s'allument."],
-      ["REFONTE", "Inventaire : des médaillons, gris tant que l'item n'est pas fait aujourd'hui."],
-      ["REFONTE", "Quêtes du jour : des contrats sur parchemin, tamponnés quand c'est fait."],
-      ["REFONTE", "Boss de la semaine : une affiche cramoisie."],
-      ["REFONTE", "Annonces : des tags au marqueur néon pour les kills, les niveaux et les records."],
-      ["REFONTE", "Écran de chargement : l'affiche du match, toi contre le boss."],
-      ["REFONTE", "Fin de partie : or pour une victoire, cramoisi pour une défaite."],
-      ["REFONTE", "Pictogrammes redessinés à plat, à facettes : items, emblèmes de rang, boss, objectifs, notes et icônes."],
+    { t: "Base", items: [
+      ["REFONTE", "Le centre de contrôle : ton gold du jour en haut, puis tes 5 objectifs en lignes, avec la condition et ta valeur pour chacun."],
+      ["NOUVEAU", "Rareté des items selon tes stacks : Commun, Rare à 7, Épique à 14, Légendaire à 21. Le cadre de l'item prend sa couleur."],
+      ["REFONTE", "Ta semaine : une case par jour avec ta note. Liseré vert pour une victoire, rouge pour une défaite."],
     ] },
-    { t: "Skins", items: [
-      ["AJUSTEMENT", "Les skins deviennent des ambiances qui habillent tous les onglets : Graffiti, Infernal, Abysse, Prestige, Challenger."],
-      ["NOUVEAU", "Graffiti : des tags dessinés sur tes affiches."],
+    { t: "Farm", items: [
+      ["REFONTE", "Le journal passe avant les suggestions. Une couleur par moment : matin, midi, après-midi, soir, nuit."],
+      ["NOUVEAU", "Protéines, glucides et lipides affichés sur la ligne de chaque repas."],
+      ["BUFF", "Les totaux tombent juste : chaque aliment est arrondi une seule fois, et le repas comme la journée font la somme exacte de ce que tu lis."],
+    ] },
+    { t: "Arène", items: [
+      ["REFONTE", "Sélection de séance façon champion select : A, B, C et tes records. Le temps de recharge s'affiche sur la prochaine séance."],
+      ["REFONTE", "Chaque exercice montre sa charge en grand à droite, avec la consigne : on monte, on garde, ou départ."],
+    ] },
+    { t: "Corrections", items: [
+      ["AJUSTEMENT", "Mana : « Mana pleine » seulement à partir de 97 %. Avant, 92 sur 103 s'affichait pleine. Haute dès 80 %, correcte dès 60 %, basse en dessous."],
+      ["AJUSTEMENT", "« Journée bouclée » seulement quand les 5 objectifs et les 3 quêtes sont faits. Avant, elle pouvait s'afficher avec une quête sur trois."],
+      ["AJUSTEMENT", "Boss : sa fiche explique ses PV (7 fois ton objectif du jour), et le dernier jour te dit exactement ce qu'il reste à manger pour le vaincre."],
+      ["AJUSTEMENT", "Import Hevy : un exercice fait en plus ne déclenche plus l'alerte « ta séance a changé ». Elle revient si un exercice du programme manque, ou si le nouvel exercice revient dans 2 de tes 3 dernières séances."],
     ] },
   ],
   prev: PATCH80,

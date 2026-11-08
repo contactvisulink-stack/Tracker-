@@ -41,8 +41,9 @@ export function SleepEdit({ ctx, k }) {
       <label className="field"><span>Minutes pour t'endormir</span><input className="inp" inputMode="numeric" value={lat} onChange={(e) => setLat(e.target.value)} /></label>
       <div className="sub-h">Ton énergie au réveil</div>
       <div className="energy">
-        {["😵", "😪", "😐", "🙂", "😄"].map((e, i) => <button key={i} className={q === i + 1 ? "on" : ""} onClick={() => setQ(i + 1)} aria-label={`Énergie ${i + 1} sur 5`}>{e}</button>)}
+        {[1, 2, 3, 4, 5].map((n) => <button key={n} className={q === n ? "on" : ""} onClick={() => setQ(n)} aria-label={`Énergie ${n} sur 5`}>{n}</button>)}
       </div>
+      <div className="energy-l" aria-hidden="true"><span>Vidé</span><span>En forme</span></div>
     </Sheet>
   );
 }
@@ -114,7 +115,7 @@ export function Coach({ ctx, ask }) {
             <div className={"msg " + m.role + (m.err ? " err" : "")}>{m.role === "assistant" ? <Rich text={m.content} /> : m.content}</div>
             {m.plan && (
               <div className="plan-chip">
-                <span>📋 {m.plan.summary}</span>
+                <span><Icon n="clip" size={14} /> {m.plan.summary}</span>
                 {m.plan.k === k && L.getPlan(k) && i === chat.map((x) => !!x.plan).lastIndexOf(true) && <button className="link small" onClick={ctx.close}>Voir sur l'accueil</button>}
               </div>
             )}
@@ -221,7 +222,7 @@ function Skins({ S, todayK, say }) {
         return (
           <button key={s.id} className={"skin s-" + s.id + (cur === s.id ? " on" : "") + (ok ? "" : " locked")} disabled={!ok}
             onClick={() => { L.setSettings({ skin: s.id }); say(`Skin : ${s.n}`); }} aria-pressed={cur === s.id}>
-            <span className="skin-sw" aria-hidden="true"><i /><i /><i /></span>
+            <span className="skin-sw" aria-hidden="true"><i /><i /></span>
             <span className="skin-n">{s.n}</span>
             <span className="skin-d">{ok ? s.d : <><Icon n="lock" size={11} sw={2.4} /> {G.skinReq(s)}</>}</span>
           </button>

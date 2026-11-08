@@ -6,7 +6,6 @@ import { PATCH } from "./content.js";
 import { sfx, announce } from "./sfx.js";
 import { Icon, Confetti, buzz } from "./ui.jsx";
 import { Home, greeting } from "./home.jsx";
-import { initGrain } from "./art.jsx";
 import { Food, AddFood, Foods } from "./food.jsx";
 import { Sport, HevyImport, ProgramEdit } from "./sport.jsx";
 import { Profile } from "./progress.jsx";
@@ -44,9 +43,7 @@ async function installUpdate() {
   location.reload();
 }
 
-// Chaque onglet a son ambiance d'affiche ; un skin peut imposer la sienne partout
-const MOOD = { home: "astral", food: "braise", sport: "sang", profile: "or" };
-const FORCED = { neon: "neon", infernal: "braise", abysse: "abysse", prestige: "or", challenger: "astral" };
+
 const rawGet = (k, fb) => { try { const s = localStorage.getItem("t2:" + k); return s == null ? fb : JSON.parse(s); } catch { return fb; } };
 const rawSet = (k, v) => { try { localStorage.setItem("t2:" + k, JSON.stringify(v)); } catch {} };
 
@@ -71,7 +68,6 @@ function App() {
 
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
-    initGrain();
     const on = () => setScrolled(window.scrollY > 24);
     window.addEventListener("scroll", on, { passive: true });
     return () => window.removeEventListener("scroll", on);
@@ -116,9 +112,8 @@ function App() {
   };
   const skin = G.SKINS.find((x) => x.id === S.skin) || G.SKINS[0];
   const skinOk = G.skinOk(skin, G.account(todayK), G.rank());
-  const mood = (skinOk && FORCED[skin.id]) || MOOD[tab];
   const ctx = {
-    S, todayK, now, say, celebrate, sub, push, mood,
+    S, todayK, now, say, celebrate, sub, push,
     open: (s) => (s.type === "match" ? setMatch(s.k) : setSheet(s)),
     close: () => setSheet(null),
     go: (t, k, sb) => { setSheet(null); setTab(t); setSub(sb || null); setFoodK(k && k !== todayK ? k : null); window.scrollTo({ top: 0 }); },
@@ -151,7 +146,7 @@ function App() {
     const ns = { ...seen };
     let dirty = false;
     if (seen.patch !== PATCH.v) {
-      push({ kicker: `Patch ${PATCH.v}`, t: PATCH.n, s: "Nouveau visuel. Les notes sont dans Profil.", tone: "purple", big: true, sound: sfx.level });
+      push({ kicker: `Patch ${PATCH.v}`, t: PATCH.n, s: "Nouvelle interface. Les notes sont dans Profil.", tone: "gold", big: true, sound: sfx.level });
       ns.patch = PATCH.v; dirty = true;
     }
     if (acc.level > (seen.lvl || 0)) {
@@ -183,7 +178,7 @@ function App() {
   const night = L.store.get("night", null);
 
   return (
-    <div className={"app skin-" + (skinOk ? skin.id : "hextech") + " mood-" + mood + (tab === "home" ? " on-home" : "") + (scrolled ? " scrolled" : "")}>
+    <div className={"app skin-" + (skinOk ? skin.id : "hextech") + " tab-" + tab + (scrolled ? " scrolled" : "")}>
       <span className="sr-only">{greeting(nowD, night)}</span>
 
       <main key={tab + (sub || "")} className="main">

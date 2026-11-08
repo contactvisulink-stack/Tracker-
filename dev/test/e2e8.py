@@ -1,5 +1,5 @@
 """Parcours complet du patch 8.1 « L'Affiche » (moteur du patch 8) dans Chromium (iPhone, heure de Perth), API Claude simulée."""
-import json, os, sys
+import json, re, os, sys
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
 sys.path.insert(0, os.path.dirname(__file__))
@@ -55,10 +55,10 @@ with sync_playwright() as p:
     ok("écran d'import à la 1re ouverture", page.locator(".welc").count() == 1)
     page.screenshot(path=f"{OUT}/e0-import.png")
     page.get_by_role("button", name="Jouer", exact=True).click(); page.wait_for_timeout(400)
-    ok("état du jeu enregistré", (store("t2:seen") or {}).get("patch") == "8.1")
+    ok("état du jeu enregistré", (store("t2:seen") or {}).get("patch") == "9.0")
     ok("salutation de nuit (lecteur d'écran)", "Il est tard" in page.locator(".sr-only").inner_text())
-    ok("affiche : médaillon, PV, mana", page.locator(".portrait").count() == 1 and page.locator(".ph-stat.hp").count() == 1 and page.locator(".ph-stat.mana").count() == 1)
-    ok("affiche peinte (ciel)", page.locator(".poster .bd-img").count() == 1)
+    ok("client : médaillon et 5 objectifs", page.locator(".tb .portrait").count() == 1 and page.locator(".ol .o").count() == 5, str(page.locator(".ol .o").count()))
+    ok("plus d'affiches, de parchemins ni de particules", page.locator(".poster, .bd-img, .ptc, .parch, .deco").count() == 0)
 
     # 1) Recall : je pose le téléphone → fin de partie → nuit → réveil
     page.get_by_role("button", name="Je pose le téléphone").click(); page.wait_for_timeout(500)
@@ -66,7 +66,7 @@ with sync_playwright() as p:
     ok("écran de fin de partie", page.locator(".endg").count() == 1, nb(page.locator(".endg-t").inner_text()) if page.locator(".endg-t").count() else "")
     page.screenshot(path=f"{OUT}/e1-fin.png")
     page.get_by_role("button", name="Bonne nuit", exact=True).click(); page.wait_for_timeout(300)
-    ok("recall affiché", "Recall en cours" in page.locator(".hero").inner_text())
+    ok("recall affiché", "RECALL EN COURS" in page.locator(".hero").inner_text().upper())
     at(2026, 10, 8, 9, 40)
     page.get_by_role("button", name="Je suis levé").click(); page.wait_for_timeout(400)
     s = (store("t2:day:2026-10-08") or {}).get("sleep")
@@ -101,7 +101,7 @@ with sync_playwright() as p:
     page.locator(".islot", has_text="Minoxidil").click(); page.wait_for_timeout(150)
     ok("minoxidil décoché au 2e appui", store("t2:day:2026-10-08")["h"].get("minox") is False)
     page.locator(".islot", has_text="Minoxidil").click(); page.wait_for_timeout(150)
-    ok("6 emplacements (4 items, eau, pesée)", page.locator(".islot").count() == 6, str(page.locator(".islot").count()))
+    ok("5 emplacements (4 items et l'eau)", page.locator(".islot").count() == 5, str(page.locator(".islot").count()))
     page.locator(".islot", has_text="Posture").click(); page.wait_for_timeout(300)
     ok("l'item posture ouvre la routine", "Routine posture" in page.locator(".sheet-title").inner_text())
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(200)
@@ -121,7 +121,9 @@ with sync_playwright() as p:
     page.locator(".sheet textarea").fill("160g de riz blanc cuit (beurre dedans ≈10g)\nSteak achee ( ≈120g)\nHuile d’olive,\ncoca coma")
     page.get_by_role("button", name="Analyser", exact=True).click(); page.wait_for_timeout(400)
     tot = page.locator(".total-line b").inner_text()
-    ok("texte reconnu sans IA", "841" in tot, tot)
+    ok("texte reconnu sans IA", "842" in tot, tot)
+    subs = [int(re.sub(r"\D", "", x.split("kcal")[0]) or 0) for x in page.locator(".sheet .item-sub").all_inner_texts() if "kcal" in x]
+    ok("le total = la somme des aliments affichés", sum(subs) == int(re.sub(r"\D", "", tot)), f"{subs} → {tot}")
     page.get_by_role("button", name="Ajouter au journal").click(); page.wait_for_timeout(400)
     ok("Alimentdex : nouvel aliment annoncé", page.locator(".ann", has_text="Nouvel aliment").count() == 1)
     page.wait_for_timeout(2600)
@@ -159,7 +161,7 @@ with sync_playwright() as p:
 
     # 9) Arène : import Hevy, sorts, +1 rep
     page.get_by_role("button", name="Arène", exact=True).click(); page.wait_for_timeout(400)
-    ok("barre de mana dans l'Arène", page.locator(".mana-p .gbar.mana").count() == 1)
+    ok("barre de mana dans l'Arène", page.locator(".mana-p .mt.blue").count() == 1)
     page.get_by_role("button", name="Importer une séance Hevy").click(); page.wait_for_timeout(300)
     page.locator(".sheet textarea").fill("Full body C\nLe jeudi, oct. 08, 2026 à 5:02pm\n\nDéveloppé Épaules (Haltère)\nSérie 1: 10 kg x 12\nSérie 2: 10 kg x 12\nSérie 3: 10 kg x 12\n\n@hevyapp\nhttps://hevy.com/workout/test-c")
     page.wait_for_timeout(200)
@@ -172,9 +174,9 @@ with sync_playwright() as p:
     page.wait_for_timeout(6000)
     at(2026, 10, 8, 18, 0)
     page.locator(".spell", has_text="C").first.click(); page.wait_for_timeout(300)
-    t = page.locator(".ex-target").first.inner_text()
+    t = page.locator(".ex-load").first.inner_text()
     ok("suggestion après import", "12,5" in t, t)
-    ok("sorts en recharge après la séance", page.locator(".spell.cd").count() == 3)
+    ok("séance du jour marquée faite", page.locator(".spell.done").count() == 1 and "Faite aujourd'hui" in page.locator(".spell.done").inner_text())
     page.screenshot(path=f"{OUT}/e5-arene.png", full_page=True)
 
     # 10) Classé : pesée → rang et LP
@@ -215,7 +217,7 @@ with sync_playwright() as p:
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(200)
     page.get_by_role("button", name="Notes de patch", exact=True).click(); page.wait_for_timeout(300)
     n = page.locator(".patch-row").count()
-    ok("notes de patch : 8.1 en haut, les 52 du 8.0 gardées dessous", n == 16 + 52 and "Affiche" in page.locator(".patch-h h3").first.inner_text(), str(n))
+    ok("notes de patch : 9.0 en haut, les 52 du 8.0 gardées dessous", n == 17 + 52 and "CLIENT" in page.locator(".patch-h h3").first.inner_text().upper(), str(n))
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(200)
     page.locator(".top-seg button", has_text="Glow-up").click(); page.wait_for_timeout(400)
     page.locator("input[type=file]:not([capture])").set_input_files(PHOTO); page.wait_for_timeout(1500)
@@ -243,7 +245,7 @@ with sync_playwright() as p:
     page.screenshot(path=f"{OUT}/e7-runes.png")
     page.get_by_role("button", name="Fermer").click(); page.wait_for_timeout(300)
     ok("inventaire : SPF et Anglais", page.locator(".islot", has_text="SPF").count() == 1 and page.locator(".islot", has_text="Anglais").count() == 1)
-    ok("pseudo dans le HUD", "Ismaël" in page.locator(".hud-n").inner_text() or "ISMAËL" in page.locator(".hud-n").inner_text().upper())
+    ok("pseudo dans l'en-tête", "Ismaël" in (page.locator(".tb .portrait").get_attribute("aria-label") or "") and page.locator(".tb .pt-l").inner_text() == "I")
     page.locator(".islot", has_text="Anglais").click(); page.wait_for_timeout(200)
     ok("item perso coché", any(k.startswith("u_") and v for k, v in store("t2:day:2026-10-08")["h"].items()))
 

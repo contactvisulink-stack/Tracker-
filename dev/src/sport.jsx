@@ -4,24 +4,26 @@ import * as G from "./game.js";
 import { RULES } from "./data.js";
 import { Sheet, Icon, buzz, GramInput } from "./ui.jsx";
 import { PostureSection } from "./posture.jsx";
-import { GBar, StackGrid } from "./hud.jsx";
-import { PosterArene } from "./posters.jsx";
+import { TopBar, Meter, Sec } from "./client.jsx";
+import { Glyph } from "./hud.jsx";
 
 const { fint, fdec, fkg } = L;
 const shortDate = (k) => L.cap(L.fmtDay(k, { weekday: "short", day: "numeric", month: "short" }));
 const setsTxt = (sets) => sets.filter((s) => !s.warm).map((s) => (s.w ? `${fdec(s.w, 2)} × ${s.r}` : `${s.r}`)).join("   ");
 
 function targetLine(pe, sg) {
-  if (sg.status === "up") return { cls: "up", main: sg.weight > 0 ? `Monte à ${fkg(sg.weight)}` : "Ajoute des reps", sub: `${sg.last.reps.join(" · ")} à ${fkg(sg.last.W)} la dernière fois : haut de fourchette atteint.` };
-  if (sg.status === "hold") return { cls: "hold", main: `Reste à ${fkg(sg.weight)}`, sub: `Dernière fois ${sg.last.reps.join(" · ")}. À ${Array(pe.sets).fill(pe.max).join("/")}, tu montes.` };
-  return { cls: "new", main: sg.weight ? `Commence à ${fkg(sg.weight)}` : "Trouve ta charge", sub: sg.weight ? `Objectif ${pe.sets} × ${pe.min}-${pe.max}.` : `Une charge qui te permet ${pe.max} reps propres.` };
+  if (sg.status === "up") return { cls: "up", w: sg.weight > 0 ? fkg(sg.weight) : "+ reps", tag: "On monte", main: sg.weight > 0 ? `Monte à ${fkg(sg.weight)}` : "Ajoute des reps", sub: `${sg.last.reps.join(" · ")} à ${fkg(sg.last.W)} la dernière fois : haut de fourchette atteint.` };
+  if (sg.status === "hold") return { cls: "hold", w: fkg(sg.weight), tag: "On garde", main: `Reste à ${fkg(sg.weight)}`, sub: `Dernière fois ${sg.last.reps.join(" · ")}. À ${Array(pe.sets).fill(pe.max).join("/")}, tu montes.` };
+  return { cls: "new", w: sg.weight ? fkg(sg.weight) : "À trouver", tag: sg.weight ? "Départ" : "", main: sg.weight ? `Commence à ${fkg(sg.weight)}` : "Trouve ta charge", sub: sg.weight ? `Objectif ${pe.sets} × ${pe.min}-${pe.max}.` : `Une charge qui te permet ${pe.max} reps propres.` };
 }
 
 export function Sport({ ctx }) {
   const [view, setView] = useState(ctx.sub === "posture" ? "posture" : "gym");
+  const tr = L.trainingStatus(ctx.todayK);
+  const sub = tr.todayW ? `${tr.todayW.title} faite aujourd'hui` : tr.due ? `Séance ${tr.next} aujourd'hui` : `Repos · prochaine : séance ${tr.next}`;
   return (
-    <div className="page">
-      <PosterArene ctx={ctx} />
+    <div className="page arena">
+      <TopBar ctx={ctx} title="Arène" sub={sub} />
       <div className="seg top-seg">
         <button className={view === "gym" ? "on" : ""} onClick={() => setView("gym")}>Salle</button>
         <button className={view === "posture" ? "on" : ""} onClick={() => setView("posture")}>Posture{!L.getDay(ctx.todayK).h.posture && <small>à faire</small>}</button>
@@ -42,9 +44,6 @@ function Gym({ ctx }) {
   const PROG = L.getProgram();
   const prog = PROG.find((p) => p.day === sel) || PROG[0];
   const diffs = PROG.map((p) => L.sessionDiff(p.day)).filter(Boolean);
-  const head = tr.todayW ? { t: `${tr.todayW.title} faite`, s: "Sort lancé. Récupère bien, mange bien." }
-    : tr.due ? { t: `Séance ${tr.next} aujourd'hui`, s: "Voici tes charges. Garde cet écran ouvert à la salle." }
-    : { t: "Repos aujourd'hui", s: `Prochaine : séance ${tr.next}.` };
   const now = new Date(ctx.now);
   const m = G.mana(ctx.todayK, now);
   const adv = G.manaAdvice(m);
@@ -54,85 +53,99 @@ function Gym({ ctx }) {
   const recent = [...rec.events].reverse().slice(0, 5);
   return (
     <>
-      <section className="panel mana-parts-p">
-        <div className="sec-h"><h2>D'où vient ta mana</h2><button className="sec-r link" onClick={() => ctx.open({ type: "codex", focus: "creatine" })}>Comment ça marche</button></div>
-        <div className="mana-parts">
-          <span>Nuit <b>{Math.round(m.sl * 100)} %</b>{!m.sleepKnown && <small> estimée</small>}</span>
-          <span>Farm d'hier <b>{Math.round(m.fy * 100)} %</b></span>
-          <span>Farm du jour <b>{Math.round(m.ft * 100)} %</b></span>
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2 className="panel-t">{head.t}</h2>
-        <p className="muted">{head.s}</p>
-        <div className="spells" role="group" aria-label="Tes sorts">
+      <Sec title="Sélection de séance" right={<><b>{tr.wk}</b> / 3 cette semaine</>} className="champs-sec" label="Sélection de séance">
+        <div className="spells" role="group" aria-label="Tes séances">
           {PROG.map((p) => {
             const key = G.SPELL_KEYS[p.day] || p.day;
             const isNext = p.day === tr.next && !tr.todayW;
+            const doneToday = tr.todayW?.session === p.day;
+            const last = ws.find((w) => w.session === p.day);
+            const st = doneToday ? "Faite aujourd'hui" : isNext ? (sp.ready ? "Prête" : `Prête dans ${Math.ceil(sp.cd)} h`) : last ? `Faite ${L.fmtDay(last.date.slice(0, 10), { weekday: "short" }).replace(".", "")}` : "Jamais faite";
             return (
-              <button key={p.day} className={"spell" + (sel === p.day ? " sel" : "") + (isNext && sp.ready ? " ready" : "") + (sp.ready ? "" : " cd")} onClick={() => { setSel(p.day); setOpen(null); }}
-                aria-label={`Séance ${p.day}${isNext ? ", prochaine" : ""}${!sp.ready ? `, récupération encore ${Math.ceil(sp.cd)} h` : ""}`}>
-                <span className="spell-k">{key}</span>
-                <span className="spell-n">{p.day}</span>
-                {!sp.ready && <span className="spell-cd" style={{ "--cd": sp.frac }}><b>{Math.ceil(sp.cd)} h</b></span>}
-                <span className="spell-c">{sp.per[p.day]?.count || 0}×</span>
+              <button key={p.day} className={"spell" + (sel === p.day ? " sel" : "") + (isNext ? " next" : "") + (isNext && sp.ready ? " ready" : "") + (doneToday ? " done" : "") + (isNext && !sp.ready ? " cd" : "")} onClick={() => { setSel(p.day); setOpen(null); }}
+                aria-pressed={sel === p.day} aria-label={`Full Body ${p.day}${isNext ? ", prochaine" : ""}. ${st}.`}>
+                <span className="spell-f">
+                  <span className="spell-n">{p.day}</span>
+                  <span className="spell-k">{key}</span>
+                  {isNext && !sp.ready && <span className="spell-cd" style={{ "--cd": sp.frac.toFixed(3) }} />}
+                  {doneToday && <span className="spell-ok"><Icon n="check" size={12} sw={2.6} /></span>}
+                </span>
+                <span className="spell-t">Full Body {p.day}</span>
+                <span className="spell-s">{st}</span>
               </button>
             );
           })}
-          <button className="spell ult" onClick={() => document.getElementById("ultime")?.scrollIntoView({ behavior: "smooth", block: "start" })} aria-label={`Ultime : ${rec.events.length} records perso`}>
-            <span className="spell-k">R</span>
-            <Icon n="star" size={22} sw={2} />
-            <span className="spell-c">{rec.events.length}</span>
+          <button className="spell ult" onClick={() => document.getElementById("ultime")?.scrollIntoView({ behavior: "smooth", block: "start" })} aria-label={`Records : ${rec.events.length}`}>
+            <span className="spell-f">
+              <span className="spell-n"><Glyph n="star" size={24} /></span>
+              <span className="spell-k">R</span>
+            </span>
+            <span className="spell-t">Records</span>
+            <span className="spell-s">{rec.events.length} au total</span>
           </button>
         </div>
-        <p className="spell-h">{sp.ready ? `Sorts rechargés, séance ${tr.next} prête.` : `Récupération : encore ${Math.ceil(sp.cd)} h.`} {tr.wk >= 3 ? "Triple kill de la semaine fait." : `${tr.wk} séance${tr.wk > 1 ? "s" : ""} sur 3 cette semaine.`}</p>
-        <div className="wk-row">
+        <div className="wk-row" aria-label="Tes séances cette semaine">
           {Array.from({ length: 7 }, (_, i) => {
             const k = L.addDays(ws0, i);
             const w = wk.find((x) => x.date.slice(0, 10) === k);
             return (
-              <div key={k} className="wk-c">
+              <div key={k} className={"wk-c" + (w ? " on" : "") + (k === ctx.todayK ? " today" : "")}>
                 <span className="wk-l">{L.keyToDate(k).toLocaleDateString("fr-FR", { weekday: "narrow" })}</span>
-                <span className={"wk-d" + (w ? " on" : "") + (k === ctx.todayK ? " today" : "")}>{w ? w.session || "✓" : ""}</span>
+                <span className="wk-d">{w ? w.session || "✓" : ""}</span>
               </div>
             );
           })}
         </div>
-        <button className="cta sun full" onClick={() => ctx.open({ type: "hevy" })}><Icon n="clip" size={18} /> Importer une séance Hevy</button>
+      </Sec>
+
+      <section className="mana-p" aria-label="Mana">
+        <div className="today-k"><span className="kick">Mana</span><span className={"pace lv-" + adv.lv}>{adv.t}</span></div>
+        <div className="mana-row">
+          <div className="today-n"><Glyph n="crystal" size={20} className="today-coin mana" /><b>{m.cur}</b><span>/ {m.max}</span></div>
+        </div>
+        <Meter v={m.cur} max={m.max} tone="blue" marks={[100 / m.max]} label={`Mana ${m.cur} sur ${m.max}`} />
+        <p className="mana-adv">{adv.s}</p>
+        <div className="mana-src">
+          <span>Nuit <b>{Math.round(m.sl * 100)} %</b>{!m.sleepKnown && <small> estimée</small>}</span>
+          <span>Farm d'hier <b>{Math.round(m.fy * 100)} %</b></span>
+          <span>Farm du jour <b>{Math.round(m.ft * 100)} %</b></span>
+          <button className="mana-crea" onClick={() => ctx.open({ type: "item", id: "creatine" })}>Créatine <b>+{m.max - 100}</b> max · {cs.s}/28</button>
+        </div>
       </section>
 
       {diffs.map((df) => <DiffCard key={df.w.id + df.day} df={df} ctx={ctx} onDone={() => setSel(df.day)} />)}
 
-      <div className="sec-h mt14"><h2>Séance {prog.day}, sort {G.SPELL_KEYS[prog.day] || prog.day}</h2><span className="sec-r">{prog.exs.length} exercices</span></div>
-      <div className="ex-list">
-        {prog.exs.map((pe) => <ExRow key={pe.key} pe={pe} ws={ws} open={open === pe.key} onToggle={() => setOpen(open === pe.key ? null : pe.key)} />)}
-      </div>
-      <button className="wide-btn ghost mt10" onClick={() => ctx.open({ type: "program", day: prog.day })}><Icon n="pen" size={17} /> Modifier la séance {prog.day}</button>
+      <Sec title={`Full Body ${prog.day}`} right={`${prog.exs.length} exercices`} className="exs" label={`Exercices de la séance ${prog.day}`}>
+        <div className="ex-list">
+          {prog.exs.map((pe) => <ExRow key={pe.key} pe={pe} ws={ws} open={open === pe.key} onToggle={() => setOpen(open === pe.key ? null : pe.key)} />)}
+        </div>
+        <div className="ex-btns">
+          <button className="cta-main ghost" onClick={() => ctx.open({ type: "program", day: prog.day })} aria-label={`Modifier la séance ${prog.day}`}><Icon n="pen" size={16} /> Modifier {prog.day}</button>
+          <button className="cta-main ghost" onClick={() => ctx.open({ type: "hevy" })} aria-label="Importer une séance Hevy"><Icon n="clip" size={16} /> Importer Hevy</button>
+        </div>
+      </Sec>
 
-      <section className="block" id="ultime">
-        <div className="block-head"><h3>Ultime : tes records</h3><span className="count">{rec.events.length}</span></div>
+      <Sec title="Ultime : tes records" right={<><b>{rec.events.length}</b> au total</>} className="recs" label="Tes records">
+        <div id="ultime" />
         {!recent.length && <p className="muted small">Ton premier record apparaîtra ici dès qu'une séance importée bat ta meilleure perf sur un exercice.</p>}
         {recent.map((e, i) => (
-          <div key={i} className="hist-row rec">
-            <span>{e.name}<small>{shortDate(e.k)}</small></span>
-            <span><b>{e.set.w ? `${fdec(e.set.w, 2)} kg × ${e.set.r}` : `${e.set.r} reps`}</b><small className="up-txt">+{fdec(e.e1rm - e.prev, 1)} kg sur ton max estimé</small></span>
+          <div key={i} className="rec-row">
+            <span className="rec-n">{e.name}<small>{shortDate(e.k)}</small></span>
+            <span className="rec-v"><b>{e.set.w ? `${fdec(e.set.w, 2)} kg × ${e.set.r}` : `${e.set.r} reps`}</b><small>+{fdec(e.e1rm - e.prev, 1)} kg de force estimée</small></span>
           </div>
         ))}
         {rec.plus1.length > 0 && <p className="hint">+1 rep réussis : <b>{rec.plus1.length}</b>. Le dernier : {rec.plus1[rec.plus1.length - 1].name}, {L.fmtDay(rec.plus1[rec.plus1.length - 1].k, { weekday: "long", day: "numeric", month: "long" })}.</p>}
-      </section>
+      </Sec>
 
-      <section className="block">
-        <div className="block-head"><h3>Les règles du jeu</h3></div>
-        <ul className="rules">{RULES.map((r, i) => <li key={i}>{r}</li>)}</ul>
-      </section>
-
-      <section className="block">
-        <div className="block-head"><h3>Historique</h3><span className="count">{ws.length}</span></div>
+      <Sec title="Historique" right={<><b>{ws.length}</b> séances</>} className="hist" label="Historique des séances">
         {!ws.length && <p className="muted">Aucune séance importée.</p>}
         {ws.slice(0, all ? 100 : 5).map((w) => <WorkoutRow key={w.id} w={w} ctx={ctx} />)}
         {ws.length > 5 && <button className="link" onClick={() => setAll(!all)}>{all ? "Voir moins" : "Tout voir"}</button>}
-      </section>
+      </Sec>
+
+      <Sec title="Les règles du jeu" className="rules-sec">
+        <ol className="rules">{RULES.map((r, i) => <li key={i}>{r}</li>)}</ol>
+      </Sec>
     </>
   );
 }
@@ -144,14 +157,14 @@ function ExRow({ pe, ws, open, onToggle }) {
   const hist = open ? L.exHistory(pe.key, ws) : [];
   return (
     <div className={"ex " + tl.cls + (open ? " open" : "")}>
-      <button className="ex-head" onClick={onToggle} aria-expanded={open}>
+      <button className="ex-head" onClick={onToggle} aria-expanded={open} aria-label={`${pe.name} : ${tl.main}`}>
         <div className="ex-main">
           <div className="ex-name">{pe.name}</div>
-          <div className="ex-target">{tl.main}</div>
+          <div className="ex-sub">{pe.sets} × {pe.min}-{pe.max} reps · repos {pe.rest}</div>
           {p1 && <div className="ex-p1"><b>+1 rep</b> vise {p1.to.map((r, i) => <React.Fragment key={i}>{i > 0 && <span className="sl">/</span>}{i === p1.i ? <em>{r}</em> : <span>{r}</span>}</React.Fragment>)}</div>}
-          <div className="ex-sub">{pe.sets} × {pe.min}-{pe.max}, repos {pe.rest}</div>
         </div>
-        <Icon n="chevron" size={18} style={{ color: "var(--dim)", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        <div className="ex-load"><b>{tl.w}</b>{tl.tag && <span>{tl.tag}</span>}</div>
+        <Icon n="chevron" size={16} style={{ color: "var(--dim)", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
         <div className="ex-body">
@@ -230,7 +243,7 @@ export function HevyImport({ ctx }) {
     L.setWorkouts(dup ? ws.map((x) => (x === dup ? { ...w, id: dup.id } : x)) : [w, ...ws]);
     buzz(15);
     ctx.celebrate?.(dup ? null : "workout");
-    ctx.say(dup ? "Séance mise à jour" : "Séance enregistrée 💪 Charges mises à jour", { undo });
+    ctx.say(dup ? "Séance mise à jour" : "Séance enregistrée. Charges mises à jour.", { undo });
     ctx.close();
   };
   return (
@@ -250,7 +263,7 @@ export function HevyImport({ ctx }) {
             const m = L.matchExercise(e.name, session);
             return (
               <div key={i} className="hist-row">
-                <span>{e.name}{m ? <span className="tag ok">reconnu</span> : <span className="tag">hors programme</span>}</span>
+                <span>{e.name}{m ? <span className="tag ok">reconnu</span> : <span className="tag">en plus</span>}</span>
                 <span>{setsTxt(e.sets)}</span>
               </div>
             );
@@ -280,8 +293,10 @@ function DiffCard({ df, ctx, onDone }) {
   };
   return (
     <section className="panel diff">
-      <h2 className="panel-t">Ta séance {day} a changé ?</h2>
-      <p className="muted small mb10">Dans ta séance du {L.fmtDay(w.date.slice(0, 10), { day: "numeric", month: "long" })}, {newEx.length > 1 ? "ces exercices ne sont" : "cet exercice n'est"} pas dans ton programme.</p>
+      <h2 className="panel-t">{missing.length ? `Ta séance ${day} a changé ?` : `Un exercice en plus qui revient`}</h2>
+      <p className="muted small mb10">{missing.length
+        ? <>Dans ta séance du {L.fmtDay(w.date.slice(0, 10), { day: "numeric", month: "long" })}, {newEx.length > 1 ? "ces exercices ne sont" : "cet exercice n'est"} pas dans ton programme, et {missing.length > 1 ? `${missing.length} exercices prévus manquent` : "un exercice prévu manque"}. Ta séance compte quand même.</>
+        : <>Tu l'as fait en plus sur au moins 2 de tes 3 dernières séances {day}. Ta séance compte normalement. Tu veux l'ajouter au programme ?</>}</p>
       {newEx.map((ex, i) => (
         <div key={i} className="diff-row">
           <div className="diff-n">{ex.name}<span className="item-sub"> · {ex.sets.filter((x) => !x.warm).map((x) => (x.w ? `${L.fdec(x.w, 2)}×${x.r}` : x.r)).join("  ")}</span></div>
