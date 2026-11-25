@@ -1107,7 +1107,7 @@ const AGENT_SCHEMA = {
 };
 
 /** Coach-agent : répond et, si ta journée change, renvoie un nouveau plan */
-export async function aiAgent(history, todayK, gameCtx = "") {
+export async function aiAgent(history, todayK) {
   const S = getSettings();
   const now = new Date();
   const t = dayTot(getDay(todayK));
@@ -1124,7 +1124,7 @@ TON RÔLE : il te dit ce qui change dans sa journée (sortie, service au travail
 - summary : une ligne qui résume le plan (ex. "Sortie ce soir : dîner à 19 h 30, coucher vers 3 h, séance demain").
 S'il pose juste une question sans changement de journée : update_plan = false, et plan rempli à vide (summary "", bedtime "", training "unchanged", meals []).
 reply : 3 à 6 lignes en français familier, tutoiement, direct, sans titres ni tableaux. Explique le nouveau plan simplement. Si quelque chose ressemble à un souci de santé, conseille-lui d'en parler à un médecin.
-Son tracker est un univers League of Legends : calories = gold (le farm), sommeil = PV (le recall), créatine = item à stacks qui monte la mana max, séances = sorts avec temps de recharge, poids = rang classé. Quand ça aide à comprendre, glisse une analogie LoL courte, comme une vidéo qu'il a aimée, sans en faire trop et sans jamais remplacer les vrais chiffres.${gameCtx ? `\nSA PARTIE EN COURS : ${gameCtx}` : ""}
+Son tracker est un tableau de bord d'ingénieur : chiffres exacts, états clairs. Réponds avec ses vrais chiffres, sans métaphores de jeu vidéo.
 
 DONNÉES DE SON APP (à jour) :
 ${buildContext(todayK)}

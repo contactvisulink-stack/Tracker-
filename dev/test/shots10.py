@@ -1,4 +1,4 @@
-"""Captures du patch 8 « Le Reforge » à différents moments, avec 5 semaines de données réalistes."""
+"""Captures de la v10 « Atelier » à différents moments, avec 5 semaines de données réalistes."""
 import json, os, sys
 from datetime import datetime, timezone, timedelta
 from playwright.sync_api import sync_playwright
@@ -11,7 +11,7 @@ URL = "file://" + os.path.abspath(sys.argv[2] if len(sys.argv) > 2 else "../inde
 ONLY = sys.argv[3].split(",") if len(sys.argv) > 3 else None
 data = build()
 ALL_ACH = ["first_blood","farmer","farmer7","farmer30","streak5","streak14","legendary","bigday","prot7","dex25","dex50","boss1","boss4","sleep1","sleep7","early_bed","clock5","vision7","cast1","triple","regular4","ult1","ult10","plus1","posture10","crea28","habit21","glow","promo","tier","half","challenger","penta","penta5"]
-SEEN = {"t2:seen": {"v": 1, "ach": ALL_ACH, "lvl": 999, "step": 99, "boss": "2026-11-02", "patch": "9.0"}, "t2:loadSeen": "2026-11-03", "t2:ann:2026-11-03": {"ids": ["prot", "sleep", "crea", "train"]}}
+SEEN = {} or {"t2:seen": {"v": 1, "ach": ALL_ACH, "lvl": 999, "step": 99, "boss": "2026-11-02", "patch": "9.0"}, "t2:loadSeen": "2026-11-03", "t2:ann:2026-11-03": {"ids": ["prot", "sleep", "crea", "train"]}}
 errors = []
 
 def scene(b, name, when, extra=None, seen=True, full=True, act=None):
@@ -57,25 +57,16 @@ def scroll(y):
 with sync_playwright() as p:
     b = p.chromium.launch()
     T = datetime(2026, 11, 3, 21, 30, tzinfo=P)
-    scene(b, "a-home", T)
-    scene(b, "b-midi", datetime(2026, 11, 3, 14, 20, tzinfo=P))
-    scene(b, "c-load", datetime(2026, 11, 3, 9, 50, tzinfo=P), extra={"t2:loadSeen": "2026-11-02"}, full=False, act=lambda pg: pg.wait_for_timeout(300))
-    scene(b, "d-welcome", T, seen=False, full=False)
-    scene(b, "e-farm", T, act=role("Farm"))
-    scene(b, "f-arene", T, act=role("Arène"))
-    scene(b, "g-profil", T, act=role("Profil"))
-    scene(b, "h-parties", T, act=seq(role("Profil"), role("Parties")))
-    scene(b, "i-succes", T, act=seq(role("Profil"), role("Succès")))
-    scene(b, "j-item", T, act=lambda pg: (pg.locator(".islot").first.dispatch_event("pointerdown", {"clientX": 50, "clientY": 500}), pg.wait_for_timeout(700)), full=False)
-    scene(b, "k-codex", T, act=seq(role("Profil"), role("Codex")), full=False)
-    scene(b, "l-patch", T, act=seq(role("Profil"), role("Notes de patch")), full=False)
-    scene(b, "m-boss", T, act=click(".bossc"), full=False)
-    scene(b, "n-fin", datetime(2026, 11, 4, 1, 20, tzinfo=P), act=role("Je pose le téléphone", 1400), full=False)
-    scene(b, "o-nuit", datetime(2026, 11, 4, 3, 40, tzinfo=P), extra={"t2:night": {"bed": "2026-11-03T16:10:00.000Z"}})
-    scene(b, "p-kill", T, extra={"t2:ann:2026-11-03": {"ids": ["prot", "sleep", "crea"]}}, full=False, act=lambda pg: pg.wait_for_timeout(100))
-    scene(b, "q-runes", T, act=role("Runes et réglages"), full=False)
-    scene(b, "r-ajout", T, act=role("Ajouter un repas"), full=False)
-    scene(b, "s-posture", T, act=seq(role("Arène"), lambda pg: (pg.locator(".top-seg button", has_text="Posture").click(), pg.wait_for_timeout(500))))
-    scene(b, "t-classe-bas", T, act=seq(role("Profil"), scroll(1300)), full=False)
+    scene(b, "a-status", T)
+    scene(b, "b-midi", datetime(2026, 11, 3, 14, 20, tzinfo=P), full=False)
+    scene(b, "c-fuel", T, act=role("Carburant"))
+    scene(b, "d-sport", T, act=role("Sport"))
+    scene(b, "e-mob", T, act=seq(role("Sport"), lambda pg: (pg.get_by_role("tab", name="Mobilité et posture").click(), pg.wait_for_timeout(500))))
+    scene(b, "f-lab", T, act=role("Analyse"))
+    scene(b, "g-console", T, act=seq(click(".cbar", 500), lambda pg: (pg.keyboard.type("2 oeufs, 150 g riz cuit, créa, eau 1 l, poids 53,8", delay=5), pg.wait_for_timeout(400))), full=False)
+    scene(b, "h-console-vide", T, act=click(".cbar", 500), full=False)
+    scene(b, "i-nuit", datetime(2026, 11, 4, 3, 40, tzinfo=P), extra={"t2:night": {"bed": "2026-11-03T16:10:00.000Z"}}, full=False)
+    scene(b, "j-reglages", T, act=role("Réglages"), full=False)
+    scene(b, "k-repas", T, act=seq(role("Carburant"), click(".ml-h", 500)), full=False)
     b.close()
 print("\n".join(errors) if errors else "Aucune erreur.")

@@ -81,11 +81,10 @@ def init_script(data, extra=None):
     js = ";".join(f"localStorage.setItem({json.dumps(k)}, {json.dumps(json.dumps(v))})" for k, v in allv.items())
     return "if(!sessionStorage.getItem('seed')){%s;sessionStorage.setItem('seed','1')}" % js
 
-FONTS = "/tmp/claude-0/-home-claude/15ed4486-db3f-5145-8af9-fdd49c36e61b/scratchpad/fonts/node_modules/@fontsource"
+FONTS = "/home/claude/fonts/node_modules/@fontsource"
 def route_fonts(page):
     faces = []
-    for fam, pkg, weights in (("Cinzel", "cinzel", (500, 600, 700, 800, 900)), ("Barlow", "barlow", (400, 500, 600)), ("Barlow Semi Condensed", "barlow-semi-condensed", (500, 600, 700)),
-                              ("Cinzel Decorative", "cinzel-decorative", (700, 900)), ("Anton", "anton", (400,)), ("Mr Dafoe", "mr-dafoe", (400,)), ("Permanent Marker", "permanent-marker", (400,))):
+    for fam, pkg, weights in (("Inter Tight", "inter-tight", (400, 500, 600, 700)), ("JetBrains Mono", "jetbrains-mono", (400, 500, 600))):
         for w in weights:
             faces.append(f"@font-face{{font-family:'{fam}';font-weight:{w};font-style:normal;src:url(https://fonts.gstatic.com/l/{pkg}-latin-{w}-normal.woff2) format('woff2');}}")
             faces.append(f"@font-face{{font-family:'{fam}';font-weight:{w};font-style:normal;unicode-range:U+0100-024F;src:url(https://fonts.gstatic.com/l/{pkg}-latin-ext-{w}-normal.woff2) format('woff2');}}")

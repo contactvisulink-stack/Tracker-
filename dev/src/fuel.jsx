@@ -1,126 +1,90 @@
+// ═════════════════════════════════════════════════════════════
+// Carburant : total, macros, projection, ce qu'il faut manger, journal.
+// ═════════════════════════════════════════════════════════════
 import React, { useState, useRef } from "react";
 import * as L from "./lib.js";
-import * as G from "./game.js";
+import * as E from "./engine.js";
 import * as A from "./actions.js";
-import { sfx } from "./sfx.js";
-import { Sheet, Icon, Spinner, Empty, GramInput, PaceBar, Count, buzz } from "./ui.jsx";
-import { Coin, Glyph } from "./hud.jsx";
-import { TopBar, Meter, Sec } from "./client.jsx";
+import { Sheet, Icon, Spinner, GramInput, buzz } from "./ui.jsx";
+import { Header, Sec, St, Bar, sign } from "./kit.jsx";
 
 const { fint, fdec } = L;
 
-// ═════════════════════════════════════════════════════════════
-// Onglet Manger
-// ═════════════════════════════════════════════════════════════
-export function Food({ ctx, k, setK }) {
+export function Fuel({ ctx, k, setK }) {
   const { S, todayK } = ctx;
-  const d = L.getDay(k), t = L.dayTot(d);
+  const now = new Date(ctx.now);
   const isToday = k === todayK;
-  const p = isToday ? L.pace(k, new Date(ctx.now), S) : null;
-  const sw = useRef(null);
-  const onTS = (e) => { sw.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
-  const onTE = (e) => {
-    if (!sw.current) return;
-    const dx = e.changedTouches[0].clientX - sw.current.x, dy = e.changedTouches[0].clientY - sw.current.y;
-    sw.current = null;
-    if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.6) {
-      if (dx > 0) setK(L.addDays(k, -1));
-      else if (!isToday) setK(L.addDays(k, 1));
-    }
-  };
-  const label = isToday ? "Aujourd'hui" : k === L.addDays(todayK, -1) ? "Hier" : L.cap(L.fmtDay(k));
-  const kc = t.k || 0;
-  const share = (g, f) => (kc > 0 ? Math.round(((g * f) / kc) * 100) : 0);
+  const d = L.getDay(k), t = L.dayTot(d);
+  const p = L.pace(k, now, S);
+  const pr = isToday ? E.projection(k, now) : null;
+  const sys = isToday ? E.systems(k, now).fuel : null;
+  const kc = t.k || 1;
+  const pct = (g, kcalPerG) => Math.round(((g * kcalPerG) / kc) * 100);
+  const dayLabel = isToday ? "Aujourd'hui" : k === L.addDays(todayK, -1) ? "Hier" : L.cap(L.fmtDay(k, { weekday: "long", day: "numeric", month: "short" }));
   return (
-    <div className="page food" onTouchStart={onTS} onTouchEnd={onTE}>
-      <TopBar ctx={ctx} title="Farm" sub="Ton journal de repas" />
+    <div className="page">
+      <Header ctx={ctx} title="Carburant" sub={`${fint(S.kcal)} kcal · ${fint(S.prot)} g de protéines par jour`} />
       <div className="daynav">
         <button className="dn-b" onClick={() => setK(L.addDays(k, -1))} aria-label="Jour précédent"><Icon n="left" size={18} /></button>
-        <div className="daynav-t">{label}</div>
-        <button className="dn-b" disabled={isToday} onClick={() => setK(L.addDays(k, 1))} aria-label="Jour suivant"><Icon n="right" size={18} /></button>
+        <span className="daynav-t">{dayLabel}</span>
+        <button className="dn-b" onClick={() => setK(L.addDays(k, 1))} disabled={isToday} aria-label="Jour suivant"><Icon n="right" size={18} /></button>
       </div>
-      {!isToday && <button className="link small back-today" onClick={() => setK(todayK)}>Revenir à aujourd'hui</button>}
 
-      <section className="farm-sum" aria-label={`Farm, ${label} : ${fint(kc)} sur ${fint(S.kcal)} kcal`}>
-        <div className="today-k"><span className="kick">Gold du jour</span><span className={"pace" + (kc >= S.kcal ? " ok" : "")}>{kc >= S.kcal ? "Objectif atteint" : `${fint(S.kcal - kc)} kcal à farmer`}</span></div>
-        <div className="today-n"><Glyph n="coin" size={20} className="today-coin" /><b><Count v={kc} /></b><span>/ {fint(S.kcal)} kcal</span></div>
-        <Meter v={kc} max={S.kcal} mark={p && kc < S.kcal ? p.expected / S.kcal : null} label={`${fint(kc)} sur ${fint(S.kcal)} kcal`} />
-        {p && kc < S.kcal && <p className="hint">Le trait clair : où tu devrais en être maintenant.</p>}
+      <section className="pnl" aria-label="Total du jour">
+        <div className="pnl-h"><span className="lbl">Énergie</span>{sys ? <St s={sys.st} /> : <St s={t.k >= S.kcal ? "ok" : t.k >= S.kcal * 0.9 ? "warn" : "crit"} label={`${Math.round((t.k / S.kcal) * 100)} %`} />}</div>
+        <div className="big xl"><b>{fint(t.k)}</b><span>/ {fint(S.kcal)} kcal</span></div>
+        <div style={{ marginTop: 12 }}><Bar v={t.k} max={S.kcal} mark={isToday && t.k < S.kcal && p.frac > 0.05 ? p.expected : null} proj={pr?.end} /></div>
+        <div className="scale"><span>0</span>{isToday && t.k < S.kcal && p.frac > 0.05 && <span>| = rythme visé à {L.hm(now)}</span>}<span>{fint(S.kcal)}</span></div>
+        {isToday && (
+          <div style={{ marginTop: 10 }}>
+            <div className="kv"><span>Reste</span><b>{t.k >= S.kcal ? "objectif atteint" : `${fint(S.kcal - t.k)} kcal`}</b></div>
+            {t.k < S.kcal && <div className="kv"><span>Rythme</span><b className={p.diff >= 0 ? "c-ok" : "c-warn"}>{sign(p.diff)} kcal</b></div>}
+            {pr && t.k < S.kcal && <div className="kv"><span>Projection à la fin du jour</span><b className={pr.gap >= 0 ? "c-ok" : pr.gap > -S.kcal * 0.1 ? "c-warn" : "c-crit"}>{fint(pr.end)} ({sign(pr.gap)})</b></div>}
+            {pr && t.k < S.kcal && <p className="hint" style={{ marginTop: 2 }}>{pr.src === "plan" ? "D'après le plan du coach." : `D'après ce que tu manges d'habitude après ${L.hm(now)} (${pr.n} derniers jours).`}</p>}
+          </div>
+        )}
         <div className="macros">
-          <div className={"mac prot" + (t.p >= S.prot ? " ok" : "")}><span className="mac-l">Protéines</span><b>{fint(t.p)}<small> / {fint(S.prot)} g</small></b><Meter v={t.p} max={S.prot} tone="orange" /></div>
-          <div className="mac carb"><span className="mac-l">Glucides</span><b>{fint(t.c)}<small> g</small></b><span className="mac-s">{share(t.c, 4)} % des kcal</span></div>
-          <div className="mac fat"><span className="mac-l">Lipides</span><b>{fint(t.f)}<small> g</small></b><span className="mac-s">{share(t.f, 9)} % des kcal</span></div>
+          <div className="mac"><span className="lbl">Protéines</span><b>{fint(t.p)}<small>/ {fint(S.prot)} g</small></b><Bar v={t.p} max={S.prot} tone="prot" thin /></div>
+          <div className="mac"><span className="lbl">Glucides</span><b>{fint(t.c)}<small>g</small></b><span className="lbl">{t.k ? pct(t.c, 4) : 0} % kcal</span></div>
+          <div className="mac"><span className="lbl">Lipides</span><b>{fint(t.f)}<small>g</small></b><span className="lbl">{t.k ? pct(t.f, 9) : 0} % kcal</span></div>
         </div>
-        {d.legacy && !d.entries.length && <p className="hint">Journée notée avec l'ancienne version : {fint(d.legacy.kcal)} kcal au total.</p>}
       </section>
 
-      <button className="cta-main" onClick={() => ctx.open({ type: "add", k })}><Icon n="plus" size={18} /> Ajouter un repas</button>
+      {isToday && <Suggest ctx={ctx} k={k} now={now} />}
 
-      <Sec title="Journal" right={d.entries.length ? `${d.entries.length} repas` : null} className="journal">
-        {d.entries.length > 0 ? (
-          <div className="timeline">
-            {d.entries.map((e) => <EntryRow key={e.id} e={e} k={k} ctx={ctx} />)}
-          </div>
-        ) : (
-          <Empty title="Aucun repas ce jour-là" text="Ajoute ton premier repas avec le bouton au-dessus." />
-        )}
+      <Sec code="J" title="Journal" right={`${d.entries.length} repas`}>
+        <div className="meals">
+          {d.entries.length ? d.entries.map((e) => <MealRow key={e.id} e={e} k={k} ctx={ctx} />)
+            : <div className="empty-l">{d.legacy?.kcal ? `${fint(d.legacy.kcal)} kcal notées (ancienne version)` : "Rien de noté. Tape ton repas dans la console, en bas."}</div>}
+        </div>
+        <div className="btn-row">
+          <button className="btn ghost" onClick={() => ctx.console("", k)}><Icon n="plus" size={16} sw={2.2} /> Ajouter</button>
+          <button className="btn ghost" onClick={() => ctx.open({ type: "foods" })}><Icon n="book" size={16} /> Aliments</button>
+        </div>
       </Sec>
-
-      {isToday && <BuildReco ctx={ctx} k={k} />}
-
-      <DexButton ctx={ctx} k={k} />
-      <p className="hint center">Glisse vers la droite ou la gauche pour changer de jour.</p>
     </div>
   );
 }
 
-/** Build recommandé : les repas qui comblent ce qu'il te manque */
-function BuildReco({ ctx, k }) {
-  const list = G.buildReco(k, new Date(ctx.now));
-  if (!list.length) return null;
+function Suggest({ ctx, k, now }) {
+  const sg = E.suggestions(k, now);
+  if (!sg.list.length) return null;
   return (
-    <section className="reco" aria-label="Build recommandé">
-      <div className="sec-h"><h2>Build recommandé</h2><span className="sec-r">pour ce qu'il te manque</span></div>
-      <div className="reco-row">
-        {list.map((c, i) => {
-          const r = G.rarity(c.t);
-          return (
-            <button key={i} className={"reco-c r-" + r} onClick={() => A.addItems(ctx, k, c.items, c.name)} aria-label={`Ajouter ${c.name}, ${fint(c.t.k)} kcal`}>
-              <span className="reco-n">{c.name}<span className="reco-r">{G.RARITY[r].n}</span></span>
-              <span className="reco-k"><Coin size={13} />{fint(c.t.k)}<small>{fint(c.t.p)} g prot</small></span>
-              <span className="reco-i">{c.items.filter((x) => x.fid !== "creatine" && x.fid !== "eau").map((x) => x.name.replace(/ \(.*\)/, "")).slice(0, 4).join(", ")}</span>
-              <span className="reco-p"><Icon n="plus" size={15} sw={2.6} /></span>
-            </button>
-          );
-        })}
+    <Sec code="→" title="Pour finir la journée" right={`~${fint(Math.round(sg.target / 50) * 50)} kcal / repas`}>
+      <div className="box">
+        {sg.list.map((c, i) => (
+          <div key={i} className="sg">
+            <span className="sg-n">{c.name}<small>{c.items.map((it) => it.name.replace(/ \(.*\)/, "")).join(", ")}</small></span>
+            <span className="sg-v"><b>{fint(c.t.k)}</b>{fint(c.t.p)} g P</span>
+            <button className="sg-p" onClick={() => A.addItems(ctx, k, c.items, c.name)} aria-label={`Ajouter ${c.name}`}><Icon n="plus" size={17} sw={2.4} /></button>
+          </div>
+        ))}
       </div>
-    </section>
-  );
-}
-function DexButton({ ctx, k }) {
-  const dx = G.dex();
-  const v = G.weekVariety(k);
-  return (
-    <button className="wide-btn ghost dexbtn" onClick={() => ctx.open({ type: "foods" })}>
-      <Icon n="book" size={18} /> Alimentdex <b>{dx.n}</b><span className="muted">sur {dx.total}</span>
-      <span className="dex-v">{v} aliments cette semaine</span>
-    </button>
+    </Sec>
   );
 }
 
-/** Le moment du repas : une couleur par créneau pour distinguer les repas */
-const SLOTS = [
-  { id: "matin", n: "matin", from: 300, to: 630 },
-  { id: "midi", n: "midi", from: 630, to: 870 },
-  { id: "aprem", n: "après-midi", from: 870, to: 1080 },
-  { id: "soir", n: "soir", from: 1080, to: 1320 },
-];
-function mealSlot(t) {
-  const [h, m] = String(t || "12:00").split(":").map(Number);
-  const x = h * 60 + (m || 0);
-  return SLOTS.find((s) => x >= s.from && x < s.to) || { id: "nuit", n: "nuit" };
-}
-function EntryRow({ e, k, ctx }) {
+function MealRow({ e, k, ctx }) {
   const [open, setOpen] = useState(false);
   const tot = L.entryTot(e);
   const upd = (fn) => L.updDay(k, (d) => ({ ...d, entries: d.entries.map((x) => (x.id === e.id ? fn(x) : x)) }));
@@ -128,39 +92,31 @@ function EntryRow({ e, k, ctx }) {
     const name = window.prompt("Nom du favori :", e.label);
     if (name && name.trim()) { const undo = L.snapKey("favs"); L.saveFav(name.trim(), e.items); ctx.say("Ajouté à tes favoris", { undo }); }
   };
-  const rr = G.rarity(tot);
-  const slot = mealSlot(e.t);
   return (
-    <div className={"tl-row r-" + rr + " s-" + slot.id + (open ? " open" : "")}>
-      <div className="tl-time">{e.t}<small>{slot.n}</small></div>
-      <div className="tl-dot" />
-      <div className="tl-card">
-        <button className="tl-head" onClick={() => setOpen(!open)} aria-expanded={open}>
-          <div className="tl-main">
-            <div className="tl-title">{e.label}<span className="tl-rar">{G.RARITY[rr].n}</span></div>
-            <div className="tl-items">{e.items.filter((i) => i.fid !== "eau").map((i) => `${i.name.replace(/ \(.*\)/, "")}${i.g ? ` ${fint(i.g)} g` : ""}`).join(", ")}</div>
-            <div className="tl-mac"><span>P <b>{fint(tot.p)}</b></span><span>G <b>{fint(tot.c)}</b></span><span>L <b>{fint(tot.f)}</b></span></div>
+    <div className={"ml" + (open ? " open" : "")}>
+      <button className="ml-h" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <span className="ml-t">{e.t}</span>
+        <span><span className="ml-n">{e.label}</span><span className="ml-i">{e.items.filter((i) => i.fid !== "eau").map((i) => `${i.name.replace(/ \(.*\)/, "")}${i.g ? ` ${fint(i.g)} g` : ""}`).join(", ")}</span></span>
+        <span className="ml-k"><b>{fint(tot.k)}</b><span>{fint(tot.p)} g P</span></span>
+      </button>
+      {open && (
+        <div className="ml-b">
+          <div className="grid2">
+            <input className="inp" value={e.label} onChange={(ev) => upd((x) => ({ ...x, label: ev.target.value }))} aria-label="Nom du repas" />
+            <input className="inp" type="time" value={e.t} onChange={(ev) => upd((x) => ({ ...x, t: ev.target.value || x.t }))} aria-label="Heure" />
           </div>
-          <div className="tl-kcal"><b>{fint(tot.k)}</b><span>kcal</span><Icon n={open ? "chevron" : "pen"} size={14} /></div>
-        </button>
-        {open && (
-          <div className="tl-body">
-            <div className="grid2">
-              <input className="inp" value={e.label} onChange={(ev) => upd((x) => ({ ...x, label: ev.target.value }))} aria-label="Nom du repas" />
-              <input className="inp" type="time" value={e.t} onChange={(ev) => upd((x) => ({ ...x, t: ev.target.value || x.t }))} aria-label="Heure" />
-            </div>
-            <ItemsEditor items={e.items}
-              onGrams={(i, g) => upd((x) => ({ ...x, items: x.items.map((it, j) => (j === i ? { ...it, g: g ?? 0 } : it)) }))}
-              onRemove={(i) => upd((x) => ({ ...x, items: x.items.filter((_, j) => j !== i) }))} />
-            <div className="chips">
-              <button className="chip" onClick={() => ctx.open({ type: "add", k, entryId: e.id })}>＋ Aliment</button>
-              {k !== ctx.todayK && <button className="chip" onClick={() => { const undo = L.snapDay(ctx.todayK); L.addEntry(ctx.todayK, e.items, e.label); buzz(10); ctx.say("Refait aujourd'hui", { undo }); }}>↻ Refaire aujourd'hui</button>}
-              <button className="chip" onClick={fav}><Icon n="star" size={14} /> En favori</button>
-              <button className="chip danger" onClick={() => A.deleteEntry(ctx, k, e)}>Supprimer</button>
-            </div>
+          <ItemsEditor items={e.items}
+            onGrams={(i, g) => upd((x) => ({ ...x, items: x.items.map((it, j) => (j === i ? { ...it, g: g ?? 0 } : it)) }))}
+            onRemove={(i) => upd((x) => ({ ...x, items: x.items.filter((_, j) => j !== i) }))} />
+          <div className="kv"><span>Glucides · lipides</span><b>{fint(tot.c)} g · {fint(tot.f)} g</b></div>
+          <div className="chips mt10">
+            <button className="chip" onClick={() => ctx.open({ type: "add", k, entryId: e.id })}>+ Aliment</button>
+            {k !== ctx.todayK && <button className="chip" onClick={() => { const undo = L.snapDay(ctx.todayK); L.addEntry(ctx.todayK, e.items, e.label); buzz(10); ctx.say("Refait aujourd'hui", { undo }); }}>Refaire aujourd'hui</button>}
+            <button className="chip" onClick={fav}><Icon n="star" size={14} /> Favori</button>
+            <button className="chip danger" onClick={() => A.deleteEntry(ctx, k, e)}>Supprimer</button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -262,11 +218,9 @@ export function AddFood({ ctx, k, mode: initMode, entryId }) {
     if (entryId) { const undo = L.snapDay(k); L.appendToEntry(k, entryId, valid); ctx.say(`Ajouté : ${fint(tot.k)} kcal`, { undo }); }
     else {
       const undo = L.snapDay(k);
-      const fresh = G.newFoods(valid);
       L.addEntry(k, valid, label.trim() || L.mealLabel(), time);
-      buzz(10); sfx.gold();
-      ctx.say(`+${fint(tot.k)} gold, ${fint(tot.p)} g de protéines`, { undo });
-      if (fresh.length && ctx.push) { const dx = G.dex(); ctx.push({ kicker: "Alimentdex", t: "Nouvel aliment", s: `${fresh.map((f) => f.name.replace(/ \(.*\)/, "")).slice(0, 2).join(", ")} : ${dx.n} sur ${dx.total} découverts`, tone: "cyan" }); }
+      buzz(10);
+      ctx.say(`+${fint(tot.k)} kcal, ${fint(tot.p)} g de protéines`, { undo });
     }
     ctx.close();
   };
@@ -286,8 +240,8 @@ export function AddFood({ ctx, k, mode: initMode, entryId }) {
               <input className="inp" type="time" value={time} onChange={(e) => setTime(e.target.value)} aria-label="Heure" />
             </div>
           )}
-          <div className="total-line"><span className="muted">{missing ? "Indique les quantités en rouge" : `${fint(tot.p)} g de protéines, rareté ${G.RARITY[G.rarity(tot)].n.toLowerCase()}`}</span><b><Coin size={18} />+{fint(tot.k)}</b></div>
-          <button className="cta sun full" disabled={!canSave} onClick={save}>Ajouter au journal</button>
+          <div className="total-line"><span className="muted">{missing ? "Indique les quantités en rouge" : `${fint(tot.p)} g de protéines`}</span><b className="mono">+{fint(tot.k)} kcal</b></div>
+          <button className="btn full" disabled={!canSave} onClick={save}>Ajouter au journal</button>
         </>
       )}>
       <div className="modes">
@@ -313,7 +267,7 @@ export function AddFood({ ctx, k, mode: initMode, entryId }) {
                     <div key={f.id} className="fav">
                       <button className="fav-main" onClick={() => oneTap(f.items, f.name)}>
                         <span className="fav-n">{f.name}</span>
-                        <span className="fav-k"><b>{fint(t.k)}</b> gold, {fint(t.p)} g</span>
+                        <span className="fav-k"><b>{fint(t.k)}</b> kcal, {fint(t.p)} g P</span>
                       </button>
                       <button className="fav-adj" onClick={() => adjust(f.items, f.name)}>Ajuster</button>
                     </div>
@@ -427,7 +381,6 @@ export function Foods({ ctx }) {
   const scanRef = useRef();
   const hasKey = !!L.getApiKey();
   const list = L.searchFoods(q).slice(0, 120);
-  const dx = G.dex();
 
   const scan = async (ev) => {
     const file = ev.target.files?.[0];
@@ -478,12 +431,8 @@ export function Foods({ ctx }) {
     );
   }
   return (
-    <Sheet title="Alimentdex" onClose={ctx.close} tall>
-      <div className="dex-h">
-        <span className="dex-n"><b>{dx.n}</b> sur {dx.total} découverts</span>
-        <span className="dex-bar"><i style={{ width: `${Math.min(100, (dx.n / Math.max(1, dx.total)) * 100)}%` }} /></span>
-        <span className="muted small">Un aliment se découvre la première fois que tu le manges. Varier, c'est aussi mieux farmer.</span>
-      </div>
+    <Sheet title="Base d'aliments" onClose={ctx.close} tall>
+      <p className="muted small mb10">{list.length >= 120 ? "Plus de 120" : list.length} aliments. Touche un aliment pour corriger ses valeurs : ta version remplace celle de base.</p>
       <div className="cta-row mb10">
         <button className="cta ghost" onClick={() => setEdit({ n: q, k: "", p: "", c: "", f: "", ug: "", un: "", src: "manuel" })}>＋ Nouveau</button>
         <button className="cta sun" disabled={!hasKey || busy} onClick={() => scanRef.current?.click()}>{busy ? <><Spinner /> Lecture…</> : "Scanner une étiquette"}</button>
@@ -495,7 +444,7 @@ export function Foods({ ctx }) {
       <div className="mt6">
         {list.map((f) => (
           <button key={f.id} className="list-row" onClick={() => startEdit(f)}>
-            <span className={dx.seen.has(f.id) ? "" : "undisc"}><span className="nm">{f.n}</span>{f.custom && <span className={"tag" + (f.src === "ia" ? " ia" : "")}>{f.src === "ia" ? "appris" : "perso"}</span>}{!dx.seen.has(f.id) && f.id !== "creatine" && f.id !== "eau" && f.id !== "cafe" && <span className="tag">pas encore goûté</span>}
+            <span><span className="nm">{f.n}</span>{f.custom && <span className={"tag" + (f.src === "ia" ? " ia" : "")}>{f.src === "ia" ? "appris" : "perso"}</span>}
               <div className="item-sub">{fint(f.k)} kcal · {fdec(f.p)} g de protéines / 100 g{f.u ? ` · 1 ${f.u.n} = ${f.u.g} g` : ""}</div></span>
             <Icon n="right" size={18} style={{ color: "var(--dim)" }} />
           </button>

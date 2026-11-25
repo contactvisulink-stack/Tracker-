@@ -1,150 +1,125 @@
+// ═════════════════════════════════════════════════════════════
+// Sport : la séance du jour, ta forme, les charges exactes,
+// la progression, les records, la mobilité.
+// ═════════════════════════════════════════════════════════════
 import React, { useState, useMemo } from "react";
 import * as L from "./lib.js";
-import * as G from "./game.js";
-import { RULES } from "./data.js";
+import * as E from "./engine.js";
 import { Sheet, Icon, buzz, GramInput } from "./ui.jsx";
 import { PostureSection } from "./posture.jsx";
-import { TopBar, Meter, Sec } from "./client.jsx";
-import { Glyph } from "./hud.jsx";
+import { Header, Sec, St, Bar, Spark, shortDay } from "./kit.jsx";
 
 const { fint, fdec, fkg } = L;
-const shortDate = (k) => L.cap(L.fmtDay(k, { weekday: "short", day: "numeric", month: "short" }));
-const setsTxt = (sets) => sets.filter((s) => !s.warm).map((s) => (s.w ? `${fdec(s.w, 2)} × ${s.r}` : `${s.r}`)).join("   ");
+const shortDate = shortDay;
+const setsTxt = (sets) => sets.filter((s) => !s.warm).map((s) => (s.w ? `${fdec(s.w, 2)}×${s.r}` : `${s.r}`)).join("  ");
 
-function targetLine(pe, sg) {
-  if (sg.status === "up") return { cls: "up", w: sg.weight > 0 ? fkg(sg.weight) : "+ reps", tag: "On monte", main: sg.weight > 0 ? `Monte à ${fkg(sg.weight)}` : "Ajoute des reps", sub: `${sg.last.reps.join(" · ")} à ${fkg(sg.last.W)} la dernière fois : haut de fourchette atteint.` };
-  if (sg.status === "hold") return { cls: "hold", w: fkg(sg.weight), tag: "On garde", main: `Reste à ${fkg(sg.weight)}`, sub: `Dernière fois ${sg.last.reps.join(" · ")}. À ${Array(pe.sets).fill(pe.max).join("/")}, tu montes.` };
-  return { cls: "new", w: sg.weight ? fkg(sg.weight) : "À trouver", tag: sg.weight ? "Départ" : "", main: sg.weight ? `Commence à ${fkg(sg.weight)}` : "Trouve ta charge", sub: sg.weight ? `Objectif ${pe.sets} × ${pe.min}-${pe.max}.` : `Une charge qui te permet ${pe.max} reps propres.` };
+function target(pe, sg) {
+  if (sg.status === "up") return { cls: "up", w: sg.weight > 0 ? fkg(sg.weight) : "+ reps", tag: "On monte", why: `${sg.last.reps.join(" · ")} à ${fkg(sg.last.W)} la dernière fois : haut de la fourchette atteint partout.` };
+  if (sg.status === "hold") return { cls: "hold", w: fkg(sg.weight), tag: "On garde", why: `Dernière fois ${sg.last.reps.join(" · ")}. Tu montes quand tu fais ${Array(pe.sets).fill(pe.max).join(" · ")}.` };
+  return { cls: "new", w: sg.weight ? fkg(sg.weight) : "À trouver", tag: sg.weight ? "Départ" : "", why: sg.weight ? `Objectif ${pe.sets} × ${pe.min}-${pe.max}.` : `Une charge qui te permet ${pe.max} reps propres.` };
 }
 
 export function Sport({ ctx }) {
-  const [view, setView] = useState(ctx.sub === "posture" ? "posture" : "gym");
+  const [tab, setTab] = useState(ctx.sub === "mob" ? "mob" : "gym");
   const tr = L.trainingStatus(ctx.todayK);
-  const sub = tr.todayW ? `${tr.todayW.title} faite aujourd'hui` : tr.due ? `Séance ${tr.next} aujourd'hui` : `Repos · prochaine : séance ${tr.next}`;
+  const sub = tr.todayW ? `${tr.todayW.title} faite` : tr.due ? `Séance ${tr.next} aujourd'hui` : `Repos · séance ${tr.next} ensuite`;
   return (
-    <div className="page arena">
-      <TopBar ctx={ctx} title="Arène" sub={sub} />
-      <div className="seg top-seg">
-        <button className={view === "gym" ? "on" : ""} onClick={() => setView("gym")}>Salle</button>
-        <button className={view === "posture" ? "on" : ""} onClick={() => setView("posture")}>Posture{!L.getDay(ctx.todayK).h.posture && <small>à faire</small>}</button>
+    <div className="page">
+      <Header ctx={ctx} title="Sport" sub={`${sub} · ${tr.wk}/3 sem.`} />
+      <div className="seg" role="tablist">
+        <button role="tab" aria-selected={tab === "gym"} className={tab === "gym" ? "on" : ""} onClick={() => setTab("gym")}>Salle</button>
+        <button role="tab" aria-selected={tab === "mob"} className={tab === "mob" ? "on" : ""} onClick={() => setTab("mob")}>Mobilité et posture</button>
       </div>
-      {view === "gym" ? <Gym ctx={ctx} /> : <PostureSection ctx={ctx} />}
+      {tab === "gym" ? <Gym ctx={ctx} tr={tr} /> : <Mobility ctx={ctx} />}
     </div>
   );
 }
 
-function Gym({ ctx }) {
+function Gym({ ctx, tr }) {
+  const now = new Date(ctx.now);
+  const PROG = L.getProgram();
   const ws = L.getWorkouts();
-  const tr = L.trainingStatus(ctx.todayK);
   const [sel, setSel] = useState(tr.todayW?.session || tr.next);
   const [open, setOpen] = useState(null);
   const [all, setAll] = useState(false);
-  const wk = L.weekWorkouts(ctx.todayK, ws);
-  const ws0 = L.weekStartKey(ctx.todayK);
-  const PROG = L.getProgram();
   const prog = PROG.find((p) => p.day === sel) || PROG[0];
   const diffs = PROG.map((p) => L.sessionDiff(p.day)).filter(Boolean);
-  const now = new Date(ctx.now);
-  const m = G.mana(ctx.todayK, now);
-  const adv = G.manaAdvice(m);
-  const cs = G.stacks("creatine", ctx.todayK);
-  const sp = G.spells(now);
-  const rec = G.records();
+  const rd = E.readiness(ctx.todayK, now);
+  const rc = E.recharge(now);
+  const vol = E.weeklyVolume(ctx.todayK, 8);
+  const rec = E.records();
   const recent = [...rec.events].reverse().slice(0, 5);
+  const thisW = vol[vol.length - 1];
   return (
     <>
-      <Sec title="Sélection de séance" right={<><b>{tr.wk}</b> / 3 cette semaine</>} className="champs-sec" label="Sélection de séance">
-        <div className="spells" role="group" aria-label="Tes séances">
-          {PROG.map((p) => {
-            const key = G.SPELL_KEYS[p.day] || p.day;
-            const isNext = p.day === tr.next && !tr.todayW;
-            const doneToday = tr.todayW?.session === p.day;
-            const last = ws.find((w) => w.session === p.day);
-            const st = doneToday ? "Faite aujourd'hui" : isNext ? (sp.ready ? "Prête" : `Prête dans ${Math.ceil(sp.cd)} h`) : last ? `Faite ${L.fmtDay(last.date.slice(0, 10), { weekday: "short" }).replace(".", "")}` : "Jamais faite";
-            return (
-              <button key={p.day} className={"spell" + (sel === p.day ? " sel" : "") + (isNext ? " next" : "") + (isNext && sp.ready ? " ready" : "") + (doneToday ? " done" : "") + (isNext && !sp.ready ? " cd" : "")} onClick={() => { setSel(p.day); setOpen(null); }}
-                aria-pressed={sel === p.day} aria-label={`Full Body ${p.day}${isNext ? ", prochaine" : ""}. ${st}.`}>
-                <span className="spell-f">
-                  <span className="spell-n">{p.day}</span>
-                  <span className="spell-k">{key}</span>
-                  {isNext && !sp.ready && <span className="spell-cd" style={{ "--cd": sp.frac.toFixed(3) }} />}
-                  {doneToday && <span className="spell-ok"><Icon n="check" size={12} sw={2.6} /></span>}
-                </span>
-                <span className="spell-t">Full Body {p.day}</span>
-                <span className="spell-s">{st}</span>
-              </button>
-            );
-          })}
-          <button className="spell ult" onClick={() => document.getElementById("ultime")?.scrollIntoView({ behavior: "smooth", block: "start" })} aria-label={`Records : ${rec.events.length}`}>
-            <span className="spell-f">
-              <span className="spell-n"><Glyph n="star" size={24} /></span>
-              <span className="spell-k">R</span>
-            </span>
-            <span className="spell-t">Records</span>
-            <span className="spell-s">{rec.events.length} au total</span>
-          </button>
+      <section className="pnl" aria-label="Forme du jour">
+        <div className="pnl-h"><span className="lbl">Forme du jour</span><St s={rd.adv.lv} label={rd.adv.t} /></div>
+        <div className="big xl"><b>{rd.pct}</b><span>%</span></div>
+        <p className="muted" style={{ marginTop: 6, fontSize: 14 }}>{rd.adv.s}</p>
+        <div className="facts">
+          <div className="fact"><span className="lbl">Nuit</span><b>{Math.round(rd.sl * 100)}<small>%{rd.sleepKnown ? "" : " est."}</small></b></div>
+          <div className="fact"><span className="lbl">Hier</span><b>{Math.round(rd.fy * 100)}<small>% kcal</small></b></div>
+          <div className="fact"><span className="lbl">Auj.</span><b>{Math.round(rd.ft * 100)}<small>% rythme</small></b></div>
+          <div className="fact"><span className="lbl">Créatine</span><b>{rd.crea}<small>/28 j</small></b></div>
         </div>
-        <div className="wk-row" aria-label="Tes séances cette semaine">
-          {Array.from({ length: 7 }, (_, i) => {
-            const k = L.addDays(ws0, i);
-            const w = wk.find((x) => x.date.slice(0, 10) === k);
-            return (
-              <div key={k} className={"wk-c" + (w ? " on" : "") + (k === ctx.todayK ? " today" : "")}>
-                <span className="wk-l">{L.keyToDate(k).toLocaleDateString("fr-FR", { weekday: "narrow" })}</span>
-                <span className="wk-d">{w ? w.session || "✓" : ""}</span>
-              </div>
-            );
-          })}
-        </div>
-      </Sec>
-
-      <section className="mana-p" aria-label="Mana">
-        <div className="today-k"><span className="kick">Mana</span><span className={"pace lv-" + adv.lv}>{adv.t}</span></div>
-        <div className="mana-row">
-          <div className="today-n"><Glyph n="crystal" size={20} className="today-coin mana" /><b>{m.cur}</b><span>/ {m.max}</span></div>
-        </div>
-        <Meter v={m.cur} max={m.max} tone="blue" marks={[100 / m.max]} label={`Mana ${m.cur} sur ${m.max}`} />
-        <p className="mana-adv">{adv.s}</p>
-        <div className="mana-src">
-          <span>Nuit <b>{Math.round(m.sl * 100)} %</b>{!m.sleepKnown && <small> estimée</small>}</span>
-          <span>Farm d'hier <b>{Math.round(m.fy * 100)} %</b></span>
-          <span>Farm du jour <b>{Math.round(m.ft * 100)} %</b></span>
-          <button className="mana-crea" onClick={() => ctx.open({ type: "item", id: "creatine" })}>Créatine <b>+{m.max - 100}</b> max · {cs.s}/28</button>
-        </div>
+        <p className="hint">Forme = 45 % ta nuit, 35 % tes calories d'hier, 20 % ton rythme d'aujourd'hui. {rc.ready ? "Récupération depuis la dernière séance : complète." : `Récupération depuis la dernière séance : encore ${Math.ceil(rc.cd)} h (environ ${E.COOLDOWN_H} h entre deux full body).`}</p>
       </section>
+
+      <div className="ses" role="group" aria-label="Séances">
+        {PROG.map((p) => {
+          const last = ws.find((w) => w.session === p.day);
+          const doneToday = tr.todayW?.session === p.day;
+          const isNext = p.day === tr.next && !tr.todayW;
+          const st = doneToday ? "Faite aujourd'hui" : isNext ? (rc.ready ? "Prête" : `Dans ${Math.ceil(rc.cd)} h`) : last ? `Faite ${shortDate(last.date.slice(0, 10)).toLowerCase()}` : "Jamais faite";
+          return (
+            <button key={p.day} className={sel === p.day ? "on" : ""} onClick={() => { setSel(p.day); setOpen(null); }} aria-pressed={sel === p.day}>
+              <span className="lbl">Full body</span>
+              <span className="ses-l">{p.day}</span>
+              <span className={"ses-s" + (doneToday || (isNext && rc.ready) ? " ok" : "")}>{st}</span>
+              {isNext && !rc.ready && <span className="ses-cd" style={{ width: `${(1 - rc.frac) * 100}%` }} />}
+            </button>
+          );
+        })}
+      </div>
 
       {diffs.map((df) => <DiffCard key={df.w.id + df.day} df={df} ctx={ctx} onDone={() => setSel(df.day)} />)}
 
-      <Sec title={`Full Body ${prog.day}`} right={`${prog.exs.length} exercices`} className="exs" label={`Exercices de la séance ${prog.day}`}>
-        <div className="ex-list">
+      <Sec code={sel} title={`Charges · ${prog.exs.length} exercices`} right="Modifier" onRight={() => ctx.open({ type: "program", day: prog.day })}>
+        <div className="ex-t">
           {prog.exs.map((pe) => <ExRow key={pe.key} pe={pe} ws={ws} open={open === pe.key} onToggle={() => setOpen(open === pe.key ? null : pe.key)} />)}
         </div>
-        <div className="ex-btns">
-          <button className="cta-main ghost" onClick={() => ctx.open({ type: "program", day: prog.day })} aria-label={`Modifier la séance ${prog.day}`}><Icon n="pen" size={16} /> Modifier {prog.day}</button>
-          <button className="cta-main ghost" onClick={() => ctx.open({ type: "hevy" })} aria-label="Importer une séance Hevy"><Icon n="clip" size={16} /> Importer Hevy</button>
+        <div className="btn-row">
+          <button className="btn ghost" onClick={() => ctx.open({ type: "hevy" })} aria-label="Importer une séance Hevy"><Icon n="clip" size={16} /> Importer Hevy</button>
+          <button className="btn ghost" onClick={() => ctx.open({ type: "program", day: prog.day })} aria-label={`Modifier la séance ${prog.day}`}><Icon n="pen" size={16} /> Modifier {prog.day}</button>
         </div>
       </Sec>
 
-      <Sec title="Ultime : tes records" right={<><b>{rec.events.length}</b> au total</>} className="recs" label="Tes records">
-        <div id="ultime" />
-        {!recent.length && <p className="muted small">Ton premier record apparaîtra ici dès qu'une séance importée bat ta meilleure perf sur un exercice.</p>}
-        {recent.map((e, i) => (
-          <div key={i} className="rec-row">
-            <span className="rec-n">{e.name}<small>{shortDate(e.k)}</small></span>
-            <span className="rec-v"><b>{e.set.w ? `${fdec(e.set.w, 2)} kg × ${e.set.r}` : `${e.set.r} reps`}</b><small>+{fdec(e.e1rm - e.prev, 1)} kg de force estimée</small></span>
-          </div>
-        ))}
-        {rec.plus1.length > 0 && <p className="hint">+1 rep réussis : <b>{rec.plus1.length}</b>. Le dernier : {rec.plus1[rec.plus1.length - 1].name}, {L.fmtDay(rec.plus1[rec.plus1.length - 1].k, { weekday: "long", day: "numeric", month: "long" })}.</p>}
+      <Sec code="V" title="Volume" right={`${thisW.sets} séries cette semaine`}>
+        <div className="pnl" style={{ marginTop: 0 }}>
+          <div className="pnl-h"><span className="lbl">Tonnage par semaine (kg × reps)</span><span className="mono muted" style={{ fontSize: 12 }}>{fint(thisW.vol)} kg</span></div>
+          <Spark values={vol.map((v) => v.vol || null)} bars color={(v) => "var(--train)"} h={48} w={300} min={0} />
+          <div className="scale"><span>il y a 7 sem.</span><span>cette semaine</span></div>
+        </div>
       </Sec>
 
-      <Sec title="Historique" right={<><b>{ws.length}</b> séances</>} className="hist" label="Historique des séances">
-        {!ws.length && <p className="muted">Aucune séance importée.</p>}
-        {ws.slice(0, all ? 100 : 5).map((w) => <WorkoutRow key={w.id} w={w} ctx={ctx} />)}
-        {ws.length > 5 && <button className="link" onClick={() => setAll(!all)}>{all ? "Voir moins" : "Tout voir"}</button>}
+      <Sec code="R" title="Records" right={`${rec.events.length} au total`}>
+        <div className="box">
+          {!recent.length && <div className="empty-l">Ton premier record apparaîtra dès qu'une séance bat ta meilleure perf.</div>}
+          {recent.map((e, i) => (
+            <div key={i} className="sg" style={{ gridTemplateColumns: "1fr auto" }}>
+              <span className="sg-n">{e.name}<small>{shortDate(e.k)}</small></span>
+              <span className="sg-v"><b>{e.set.w ? `${fdec(e.set.w, 2)} kg × ${e.set.r}` : `${e.set.r} reps`}</b><span className="c-ok">+{fdec(e.e1rm - e.prev, 1)} kg de force est.</span></span>
+            </div>
+          ))}
+        </div>
       </Sec>
 
-      <Sec title="Les règles du jeu" className="rules-sec">
-        <ol className="rules">{RULES.map((r, i) => <li key={i}>{r}</li>)}</ol>
+      <Sec code="H" title="Historique" right={`${ws.length} séances`}>
+        <div className="pnl" style={{ marginTop: 0, paddingTop: 4, paddingBottom: 4 }}>
+          {!ws.length && <p className="muted" style={{ padding: "10px 0" }}>Aucune séance importée.</p>}
+          {ws.slice(0, all ? 100 : 5).map((w) => <WorkoutRow key={w.id} w={w} ctx={ctx} />)}
+          {ws.length > 5 && <button className="link" style={{ padding: "10px 0" }} onClick={() => setAll(!all)}>{all ? "Voir moins" : "Tout voir"}</button>}
+        </div>
       </Sec>
     </>
   );
@@ -152,50 +127,68 @@ function Gym({ ctx }) {
 
 function ExRow({ pe, ws, open, onToggle }) {
   const sg = L.suggest(pe, ws);
-  const tl = targetLine(pe, sg);
-  const p1 = G.plusOne(pe, sg);
-  const hist = open ? L.exHistory(pe.key, ws) : [];
+  const tl = target(pe, sg);
+  const p1 = E.plusOne(pe, sg);
+  const hist = open ? L.exHistory(pe.key, ws, 8) : [];
   return (
-    <div className={"ex " + tl.cls + (open ? " open" : "")}>
-      <button className="ex-head" onClick={onToggle} aria-expanded={open} aria-label={`${pe.name} : ${tl.main}`}>
-        <div className="ex-main">
-          <div className="ex-name">{pe.name}</div>
-          <div className="ex-sub">{pe.sets} × {pe.min}-{pe.max} reps · repos {pe.rest}</div>
-          {p1 && <div className="ex-p1"><b>+1 rep</b> vise {p1.to.map((r, i) => <React.Fragment key={i}>{i > 0 && <span className="sl">/</span>}{i === p1.i ? <em>{r}</em> : <span>{r}</span>}</React.Fragment>)}</div>}
-        </div>
-        <div className="ex-load"><b>{tl.w}</b>{tl.tag && <span>{tl.tag}</span>}</div>
+    <div className={"ex " + tl.cls}>
+      <button className="ex-h" onClick={onToggle} aria-expanded={open} aria-label={`${pe.name} : ${tl.w}, ${tl.tag}`}>
+        <span>
+          <span className="ex-n">{pe.name}</span>
+          <span className="ex-s" style={{ display: "block" }}>{pe.sets}×{pe.min}-{pe.max} · repos {pe.rest}{sg.last ? ` · dernière ${setsTxt(sg.last.all)}` : ""}</span>
+          {p1 && <span className="ex-p" style={{ display: "block" }}>+1 rep : {p1.to.map((r, i) => (i === p1.i ? <em key={i}>{r}</em> : <React.Fragment key={i}>{r}</React.Fragment>)).reduce((a, x, i) => (i ? [...a, " · ", x] : [x]), [])}</span>}
+        </span>
+        <span className="ex-l"><b>{tl.w}</b>{tl.tag && <span>{tl.tag}</span>}</span>
         <Icon n="chevron" size={16} style={{ color: "var(--dim)", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
       </button>
       {open && (
-        <div className="ex-body">
-          <p className="ex-why">{tl.sub}</p>
+        <div className="ex-b">
+          <p className="muted" style={{ fontSize: 13 }}>{tl.why}</p>
           {sg.drop && <p className="warn-txt">Ta dernière série a chuté : prends 3 min de repos avant elle.</p>}
-          <ul className="cues">{pe.cues.map((c, i) => <li key={i}>{c}</li>)}</ul>
-          {hist.length > 0 && (
-            <>
-              <div className="sub-h">Tes dernières fois</div>
-              {hist.map((h, i) => <div key={i} className="hist-row"><span>{shortDate(h.date.slice(0, 10))}</span><span>{setsTxt(h.sets)}</span></div>)}
-              {hist.length >= 2 && <Spark values={hist.map((h) => h.best).reverse()} />}
-            </>
+          {hist.length >= 2 && (
+            <div style={{ margin: "10px 0" }}>
+              <div className="lbl" style={{ marginBottom: 4 }}>Force estimée (meilleure série)</div>
+              <Spark values={hist.map((h) => h.best).reverse()} color="var(--ok)" h={40} w={300} dots />
+            </div>
           )}
+          {hist.map((h, i) => <div key={i} className="hist-row"><span>{shortDate(h.date.slice(0, 10))}</span><span>{setsTxt(h.sets)}</span></div>)}
+          {pe.cues?.length > 0 && <ul className="cues">{pe.cues.map((c, i) => <li key={i}>{c}</li>)}</ul>}
         </div>
       )}
     </div>
   );
 }
 
-function Spark({ values }) {
-  const W = 300, H = 56;
-  const min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
-  const pts = values.map((v, i) => [(i / (values.length - 1)) * W, H - 8 - ((v - min) / span) * (H - 18)]);
+// ── Mobilité : 4 tests à refaire de temps en temps, puis la routine posture
+function Mobility({ ctx }) {
+  const mob = E.getMob();
+  const k = ctx.todayK;
   return (
-    <div className="mt10">
-      <div className="item-sub">Force estimée sur ta meilleure série</div>
-      <svg className="chart" viewBox={`0 0 ${W} ${H}`}>
-        <polyline points={pts.map((p) => p.join(",")).join(" ")} fill="none" stroke="var(--sun)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-        {pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="3.5" fill="var(--sun)" />)}
-      </svg>
-    </div>
+    <>
+      <Sec code="M" title="Tests de mobilité" right="à refaire chaque semaine">
+        <div className="mob">
+          {E.MOB_TESTS.map((t) => {
+            const h = Array.isArray(mob[t.id]) ? mob[t.id] : [];
+            const last = h[h.length - 1];
+            const today = last && last.k === k ? last.lv : null;
+            return (
+              <div key={t.id} className="mob-r">
+                <div className="mob-h"><span className="mob-n">{t.n}</span><span className="mob-d">{last ? (last.k === k ? "testé aujourd'hui" : `dernier test ${shortDate(last.k).toLowerCase()}`) : "jamais testé"}</span></div>
+                <div className="mob-how">{t.how}</div>
+                <div className="mob-lv" role="group" aria-label={t.n}>
+                  {t.lv.map((l, i) => <button key={i} className={"l" + i + (today === i ? " on" : "")} aria-pressed={today === i} onClick={() => { const undo = L.snapKey("mob"); E.setMob(t.id, i, k); buzz(8); ctx.say(`${t.n} : ${l.toLowerCase()}`, { undo }); }}>{l}</button>)}
+                </div>
+                {h.length > 0 && <div className="mob-hist" aria-label="Historique">{h.slice(-16).map((x, i) => <i key={i} className={"l" + x.lv} title={`${x.k} : ${t.lv[x.lv]}`} />)}</div>}
+              </div>
+            );
+          })}
+        </div>
+        <p className="hint">Note où tu en es, pas où tu voudrais être. Le but : voir ces barres passer au vert en quelques semaines grâce à la routine ci-dessous.</p>
+      </Sec>
+      <Sec code="P" title="Routine posture">
+        <PostureSection ctx={ctx} />
+      </Sec>
+    </>
   );
 }
 
@@ -206,7 +199,7 @@ function WorkoutRow({ w, ctx }) {
     <div className="wrow">
       <button className="wrow-head" onClick={() => setOpen(!open)} aria-expanded={open}>
         <span>
-          <span className="nm">{w.title}</span>{w.session && <span className="tag sun">{w.session}</span>}
+          <span className="nm">{w.title}</span>{w.session && <span className="tag">{w.session}</span>}
           <div className="item-sub">{shortDate(w.date.slice(0, 10))} · {L.workoutSets(w)} séries · {fint(L.workoutVolume(w))} kg soulevés</div>
         </span>
         <Icon n="chevron" size={18} style={{ color: "var(--dim)", transform: open ? "rotate(180deg)" : "none" }} />
@@ -242,8 +235,7 @@ export function HevyImport({ ctx }) {
     const dup = ws.find((x) => (w.url && x.url === w.url) || (x.date === w.date && x.title === w.title));
     L.setWorkouts(dup ? ws.map((x) => (x === dup ? { ...w, id: dup.id } : x)) : [w, ...ws]);
     buzz(15);
-    ctx.celebrate?.(dup ? null : "workout");
-    ctx.say(dup ? "Séance mise à jour" : "Séance enregistrée. Charges mises à jour.", { undo });
+        ctx.say(dup ? "Séance mise à jour" : "Séance enregistrée. Charges mises à jour.", { undo });
     ctx.close();
   };
   return (
