@@ -48,28 +48,29 @@ with sync_playwright() as p:
     k0 = keys()
     ok("aucune donnée perdue à l'ouverture", all(k in k0 for k in ["t2:day:" + K, "t2:workouts", "t2:favs", "iwt"]) and len([k for k in k0 if k.startswith("t2:day:")]) >= 30, f"{len(k0)} clés")
     ok("plus rien du jeu à l'écran", page.locator(".islot, .poster, .bossc, .rankc, .kcard, .ann").count() == 0)
+    page.wait_for_timeout(600)
 
     # 2) Status
-    ok("4 systèmes", page.locator(".sys").count() == 4)
-    ok("une prochaine action", page.locator(".next").count() == 1, page.locator(".next-t").first.inner_text() if page.locator(".next-t").count() else "")
-    t = page.locator(".sys .big b").first.inner_text()
+    ok("carte du jour + 2 tuiles", page.locator(".hero").count() == 1 and page.locator(".tile").count() == 2)
+    ok("une prochaine action", page.locator(".next").count() == 1, page.locator(".next-tx b").first.inner_text() if page.locator(".next-tx b").count() else "")
+    t = page.locator(".hero-n b").first.inner_text()
     ok("carburant = total réel du jour", re.sub(r"\D", "", t) == str(kcal(day())), f"{t} vs {kcal(day())}")
     ok("pas de débordement horizontal (Status)", sw() <= 390, str(sw()))
     page.screenshot(path=f"{OUT}/1-status.png")
 
     # 3) Protocole : un appui coche, « Annuler » décoche
     was = bool(day().get("h", {}).get("minox"))
-    page.locator(".chk", has_text="Minoxidil").click(); page.wait_for_timeout(300)
+    page.locator(".tog", has_text="Minoxidil").click(); page.wait_for_timeout(300)
     ok("protocole : coché en un appui", bool(day().get("h", {}).get("minox")) != was)
     page.locator(".toast-undo").click(); page.wait_for_timeout(300)
     ok("protocole : annulé", bool(day().get("h", {}).get("minox")) == was)
     w0 = day().get("water", 0)
-    page.locator(".chk.water").click(); page.wait_for_timeout(300)
+    page.locator(".tog.water").click(); page.wait_for_timeout(300)
     ok("eau +0,5 L", abs(day().get("water", 0) - w0 - 0.5) < 1e-6, str(day().get("water")))
 
     # 4) Console : plusieurs choses en une ligne
     n0, wt0, d0 = len(day().get("entries", [])), day().get("water", 0), day()
-    page.locator(".cbar").click(); page.wait_for_timeout(400)
+    page.locator(".fab").click(); page.wait_for_timeout(400)
     ok("console ouverte avec le clavier", page.evaluate("document.activeElement && document.activeElement.tagName") == "TEXTAREA")
     page.keyboard.type("2 oeufs, 150 g riz cuit, créa, eau 1 l, poids 53,8", delay=3); page.wait_for_timeout(300)
     rows = page.locator(".cp-row").count()
@@ -89,28 +90,28 @@ with sync_playwright() as p:
     ok("un seul « Annuler » défait tout", len(day().get("entries", [])) == n0 and abs(day().get("water", 0) - wt0) < 1e-6 and (store("iwt") or {}).get(K) is None)
 
     # 5) Console : nuit, mode nuit, réveil
-    page.locator(".cbar").click(); page.wait_for_timeout(300)
+    page.locator(".fab").click(); page.wait_for_timeout(300)
     page.keyboard.type("nuit 1h30 9h45"); page.wait_for_timeout(200)
     role("Valider").click(); page.wait_for_timeout(300)
     s = day().get("sleep") or {}
     ok("console : nuit 1h30 → 9h45", s.get("bed", "").endswith("T17:30:00.000Z") and s.get("wake", "").endswith("T01:45:00.000Z"), f"{s.get('bed')} {s.get('wake')}")
-    page.locator(".cbar").click(); page.wait_for_timeout(300)
+    page.locator(".fab").click(); page.wait_for_timeout(300)
     page.keyboard.type("dodo"); role("Valider").click(); page.wait_for_timeout(600)
-    ok("mode nuit lancé", store("t2:night") is not None and page.locator(".nightp").count() == 1)
+    ok("mode nuit lancé", store("t2:night") is not None and page.locator(".hero.t-sleep").count() == 1)
     page.clock.run_for(8 * 3600 * 1000); page.wait_for_timeout(300)
     role("Je suis levé").click(); page.wait_for_timeout(400)
     ok("réveil : nuit enregistrée", store("t2:night") is None and store("t2:day:2026-11-04") and (store("t2:day:2026-11-04") or {}).get("sleep") is not None)
     page.clock.install(time=datetime(2026, 11, 3, 21, 40, tzinfo=P)); page.reload(); page.wait_for_timeout(900)
 
     # 6) Carburant
-    role("Carburant").click(); page.wait_for_timeout(500)
+    role("Repas").click(); page.wait_for_timeout(1100)
     ok("journal : un bloc par repas", page.locator(".ml").count() == len(day().get("entries", [])), f"{page.locator('.ml').count()} / {len(day().get('entries', []))}")
-    big = page.locator(".pnl .big b").first.inner_text()
+    big = page.locator(".hero-n b").first.inner_text()
     ok("total = somme des aliments", re.sub(r"\D", "", big) == str(kcal(day())), f"{big} vs {kcal(day())}")
     ok("pas de débordement horizontal (Carburant)", sw() <= 390, str(sw()))
     n0 = len(day().get("entries", []))
-    if page.locator(".sg-p").count():
-        page.locator(".sg-p").first.click(); page.wait_for_timeout(300)
+    if page.locator(".sg .plus").count():
+        page.locator(".sg .plus").first.click(); page.wait_for_timeout(300)
         ok("suggestion ajoutée en un appui", len(day().get("entries", [])) == n0 + 1)
         page.locator(".toast-undo").click(); page.wait_for_timeout(300)
     else:
@@ -124,8 +125,8 @@ with sync_playwright() as p:
     # 7) Sport
     role("Sport").click(); page.wait_for_timeout(500)
     prog = store("t2:program")
-    ok("forme du jour en %", re.search(r"\d+", page.locator(".pnl .big b").first.inner_text()) is not None)
-    ok("3 séances A B C", page.locator(".ses button").count() == 3)
+    ok("forme du jour en %", re.search(r"\d+", page.locator(".hero-n b").first.inner_text()) is not None)
+    ok("3 séances A B C", page.locator(".seg.small3 button").count() == 3)
     ok("charges : une ligne par exercice", page.locator(".ex").count() >= 5, str(page.locator(".ex").count()))
     page.locator(".ex-h").first.click(); page.wait_for_timeout(300)
     ok("historique de l'exercice", page.locator(".ex-b .hist-row").count() >= 1)
@@ -135,10 +136,10 @@ with sync_playwright() as p:
     nw = len(store("t2:workouts") or [])
     role("Enregistrer la séance").click(); page.wait_for_timeout(500)
     ok("import Hevy", len(store("t2:workouts") or []) == nw + 1)
-    ok("séance du jour marquée faite", page.locator(".ses-s.ok", has_text="Faite aujourd'hui").count() == 1)
+    ok("séance du jour marquée faite", page.locator(".sec-r", has_text="Faite aujourd'hui").count() == 1)
     ok("pas de débordement horizontal (Sport)", sw() <= 390, str(sw()))
     page.get_by_role("tab", name="Mobilité et posture").click(); page.wait_for_timeout(300)
-    page.locator(".mob-r").first.get_by_role("button", name="Tibias").click(); page.wait_for_timeout(300)
+    page.locator(".mob").first.get_by_role("button", name="Tibias").click(); page.wait_for_timeout(300)
     ok("test de mobilité enregistré", (store("t2:mob") or {}).get("toes") == [{"k": K, "lv": 1}], str(store("t2:mob")))
 
     # 8) Analyse
@@ -148,9 +149,9 @@ with sync_playwright() as p:
     nums = [int(re.sub(r"\D", "", x)) for x in re.findall(r"\d[\d  ]{2,}", txt)]
     ok("calcul affiché cohérent", len(nums) >= 2, txt.replace("\n", " "))
     kc0 = (store("t2:settings") or {}).get("kcal")
-    btn = page.locator(".en-res .btn")
+    btn = page.locator(".res .btn")
     if btn.count():
-        want = int(re.sub(r"\D", "", btn.inner_text()))
+        want = int(re.sub(r"\D", "", page.locator(".res b").first.inner_text()))
         btn.click(); page.wait_for_timeout(300)
         ok("objectif changé seulement sur ton appui", (store("t2:settings") or {}).get("kcal") == want, str(want))
         page.locator(".toast-undo").click(); page.wait_for_timeout(300)
@@ -163,14 +164,14 @@ with sync_playwright() as p:
     role("Réglages").click(); page.wait_for_timeout(300)
     page.get_by_placeholder("Anglais").fill("Anglais"); role("Ajouter au protocole").click(); page.wait_for_timeout(300)
     page.locator(".sheet .round-btn").click(); page.wait_for_timeout(300)
-    page.locator(".cbar").click(); page.wait_for_timeout(300)
+    page.locator(".fab").click(); page.wait_for_timeout(300)
     page.keyboard.type("anglais"); page.wait_for_timeout(200)
     role("Valider").click(); page.wait_for_timeout(300)
     hid = [c["id"] for c in (store("t2:settings") or {}).get("customItems", []) if c["label"] == "Anglais"]
     ok("habitude perso cochée depuis la console", hid and day().get("h", {}).get(hid[0]) is True)
 
     # 10) Coach
-    page.locator(".hdr .ib").first.click(); page.wait_for_timeout(300)
+    page.locator(".lt .gb").first.click(); page.wait_for_timeout(300)
     page.locator(".sheet textarea").fill("Je mange quoi ?"); page.locator(".send").click(); page.wait_for_timeout(800)
     ok("coach répond", page.locator(".msg.assistant").count() >= 1)
     b.close()

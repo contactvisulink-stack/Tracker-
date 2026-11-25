@@ -1,12 +1,12 @@
 // ═════════════════════════════════════════════════════════════
-// Carburant : total, macros, projection, ce qu'il faut manger, journal.
+// Carburant : où tu en es, ce qu'il faut manger, ce que tu as mangé.
 // ═════════════════════════════════════════════════════════════
 import React, { useState, useRef } from "react";
 import * as L from "./lib.js";
 import * as E from "./engine.js";
 import * as A from "./actions.js";
 import { Sheet, Icon, Spinner, GramInput, buzz } from "./ui.jsx";
-import { Header, Sec, St, Bar, sign } from "./kit.jsx";
+import { Title, Sec, N, Cap, Ring, Chip, sign } from "./kit.jsx";
 
 const { fint, fdec } = L;
 
@@ -17,50 +17,50 @@ export function Fuel({ ctx, k, setK }) {
   const d = L.getDay(k), t = L.dayTot(d);
   const p = L.pace(k, now, S);
   const pr = isToday ? E.projection(k, now) : null;
-  const sys = isToday ? E.systems(k, now).fuel : null;
   const kc = t.k || 1;
   const pct = (g, kcalPerG) => Math.round(((g * kcalPerG) / kc) * 100);
   const dayLabel = isToday ? "Aujourd'hui" : k === L.addDays(todayK, -1) ? "Hier" : L.cap(L.fmtDay(k, { weekday: "long", day: "numeric", month: "short" }));
+  const late = isToday && t.k < S.kcal && p.frac > 0.05;
   return (
     <div className="page">
-      <Header ctx={ctx} title="Carburant" sub={`${fint(S.kcal)} kcal · ${fint(S.prot)} g de protéines par jour`} />
-      <div className="daynav">
-        <button className="dn-b" onClick={() => setK(L.addDays(k, -1))} aria-label="Jour précédent"><Icon n="left" size={18} /></button>
-        <span className="daynav-t">{dayLabel}</span>
-        <button className="dn-b" onClick={() => setK(L.addDays(k, 1))} disabled={isToday} aria-label="Jour suivant"><Icon n="right" size={18} /></button>
-      </div>
+      <Title ctx={ctx} kicker={`Objectif ${fint(S.kcal)} kcal · ${fint(S.prot)} g de protéines`} title="Repas">
+        <div className="dnav">
+          <button onClick={() => setK(L.addDays(k, -1))} aria-label="Jour précédent"><Icon n="left" size={17} /></button>
+          <span>{dayLabel}</span>
+          <button onClick={() => setK(L.addDays(k, 1))} disabled={isToday} aria-label="Jour suivant"><Icon n="right" size={17} /></button>
+        </div>
+      </Title>
 
-      <section className="pnl" aria-label="Total du jour">
-        <div className="pnl-h"><span className="lbl">Énergie</span>{sys ? <St s={sys.st} /> : <St s={t.k >= S.kcal ? "ok" : t.k >= S.kcal * 0.9 ? "warn" : "crit"} label={`${Math.round((t.k / S.kcal) * 100)} %`} />}</div>
-        <div className="big xl"><b>{fint(t.k)}</b><span>/ {fint(S.kcal)} kcal</span></div>
-        <div style={{ marginTop: 12 }}><Bar v={t.k} max={S.kcal} mark={isToday && t.k < S.kcal && p.frac > 0.05 ? p.expected : null} proj={pr?.end} /></div>
-        <div className="scale"><span>0</span>{isToday && t.k < S.kcal && p.frac > 0.05 && <span>| = rythme visé à {L.hm(now)}</span>}<span>{fint(S.kcal)}</span></div>
-        {isToday && (
-          <div style={{ marginTop: 10 }}>
-            <div className="kv"><span>Reste</span><b>{t.k >= S.kcal ? "objectif atteint" : `${fint(S.kcal - t.k)} kcal`}</b></div>
-            {t.k < S.kcal && <div className="kv"><span>Rythme</span><b className={p.diff >= 0 ? "c-ok" : "c-warn"}>{sign(p.diff)} kcal</b></div>}
-            {pr && t.k < S.kcal && <div className="kv"><span>Projection à la fin du jour</span><b className={pr.gap >= 0 ? "c-ok" : pr.gap > -S.kcal * 0.1 ? "c-warn" : "c-crit"}>{fint(pr.end)} ({sign(pr.gap)})</b></div>}
-            {pr && t.k < S.kcal && <p className="hint" style={{ marginTop: 2 }}>{pr.src === "plan" ? "D'après le plan du coach." : `D'après ce que tu manges d'habitude après ${L.hm(now)} (${pr.n} derniers jours).`}</p>}
+      <section className="card hero t-fuel" aria-label="Total du jour">
+        <div className="hero-top"><span className="hero-l"><Icon n="flame" size={15} /> Énergie</span>
+          <Chip s={t.k >= S.kcal ? "ok" : !late ? "" : p.diff >= 0 ? "ok" : p.diff > -S.kcal * 0.1 ? "warn" : "crit"}>{t.k >= S.kcal ? "Objectif atteint" : late ? `${p.diff >= 0 ? "En avance" : "En retard"} · ${sign(p.diff)}` : `${Math.round((t.k / S.kcal) * 100)} %`}</Chip></div>
+        <div className="hero-n"><b className="grad-fuel"><N v={t.k} /></b><span>/ {fint(S.kcal)} kcal</span></div>
+        <Cap v={t.k} max={S.kcal} mark={late ? p.expected : null} proj={pr?.end} h={12} />
+        {isToday && t.k < S.kcal && (
+          <div className="kpis">
+            <span><em>Reste</em><b>{fint(S.kcal - t.k)}</b></span>
+            {pr && <span><em>Projection</em><b className={pr.gap >= 0 ? "c-ok" : pr.gap > -S.kcal * 0.1 ? "c-warn" : "c-crit"}>{fint(pr.end)}</b></span>}
+            <span><em>Repas</em><b>{d.entries.length}</b></span>
           </div>
         )}
-        <div className="macros">
-          <div className="mac"><span className="lbl">Protéines</span><b>{fint(t.p)}<small>/ {fint(S.prot)} g</small></b><Bar v={t.p} max={S.prot} tone="prot" thin /></div>
-          <div className="mac"><span className="lbl">Glucides</span><b>{fint(t.c)}<small>g</small></b><span className="lbl">{t.k ? pct(t.c, 4) : 0} % kcal</span></div>
-          <div className="mac"><span className="lbl">Lipides</span><b>{fint(t.f)}<small>g</small></b><span className="lbl">{t.k ? pct(t.f, 9) : 0} % kcal</span></div>
-        </div>
+        {pr && t.k < S.kcal && <p className="hero-s">Le trait blanc : où tu devrais en être à {L.hm(now)}. Les pointillés : où tu finis d'après {pr.src === "plan" ? "le plan du coach" : `tes ${pr.n} derniers jours`}.</p>}
       </section>
+
+      <div className="macros">
+        <div className="card mac"><Ring v={t.p} max={S.prot} tone="prot" size={46} sw={5} /><span><b>{fint(t.p)}<small> g</small></b><em>Protéines</em><i>{Math.round((t.p / S.prot) * 100)} % visé</i></span></div>
+        <div className="card mac"><span className="mac-d t-fuel" /><span><b>{fint(t.c)}<small> g</small></b><em>Glucides</em><i>{t.k ? pct(t.c, 4) : 0} % des kcal</i></span></div>
+        <div className="card mac"><span className="mac-d t-mass" /><span><b>{fint(t.f)}<small> g</small></b><em>Lipides</em><i>{t.k ? pct(t.f, 9) : 0} % des kcal</i></span></div>
+      </div>
 
       {isToday && <Suggest ctx={ctx} k={k} now={now} />}
 
-      <Sec code="J" title="Journal" right={`${d.entries.length} repas`}>
-        <div className="meals">
-          {d.entries.length ? d.entries.map((e) => <MealRow key={e.id} e={e} k={k} ctx={ctx} />)
-            : <div className="empty-l">{d.legacy?.kcal ? `${fint(d.legacy.kcal)} kcal notées (ancienne version)` : "Rien de noté. Tape ton repas dans la console, en bas."}</div>}
-        </div>
-        <div className="btn-row">
-          <button className="btn ghost" onClick={() => ctx.console("", k)}><Icon n="plus" size={16} sw={2.2} /> Ajouter</button>
-          <button className="btn ghost" onClick={() => ctx.open({ type: "foods" })}><Icon n="book" size={16} /> Aliments</button>
-        </div>
+      <Sec title="Journal" right={d.entries.length ? `${d.entries.length} repas` : null}>
+        {d.entries.length ? (
+          <div className="tl">
+            {d.entries.map((e) => <MealRow key={e.id} e={e} k={k} ctx={ctx} />)}
+          </div>
+        ) : <div className="card empty">{d.legacy?.kcal ? `${fint(d.legacy.kcal)} kcal notées (ancienne version)` : <>Rien de noté pour l'instant.<br />Touche <b>+</b> en bas et écris ce que tu as mangé.</>}</div>}
+        <button className="btn ghost full mt10" onClick={() => ctx.open({ type: "foods" })}><Icon n="book" size={16} /> Mes aliments</button>
       </Sec>
     </div>
   );
@@ -70,13 +70,16 @@ function Suggest({ ctx, k, now }) {
   const sg = E.suggestions(k, now);
   if (!sg.list.length) return null;
   return (
-    <Sec code="→" title="Pour finir la journée" right={`~${fint(Math.round(sg.target / 50) * 50)} kcal / repas`}>
-      <div className="box">
+    <Sec title="Pour finir la journée" right={`~${fint(Math.round(sg.target / 50) * 50)} kcal par repas`}>
+      <div className="hs">
         {sg.list.map((c, i) => (
-          <div key={i} className="sg">
-            <span className="sg-n">{c.name}<small>{c.items.map((it) => it.name.replace(/ \(.*\)/, "")).join(", ")}</small></span>
-            <span className="sg-v"><b>{fint(c.t.k)}</b>{fint(c.t.p)} g P</span>
-            <button className="sg-p" onClick={() => A.addItems(ctx, k, c.items, c.name)} aria-label={`Ajouter ${c.name}`}><Icon n="plus" size={17} sw={2.4} /></button>
+          <div key={i} className="card sg">
+            <span className="sg-n">{c.name}</span>
+            <span className="sg-i">{c.items.map((it) => it.name.replace(/ \(.*\)/, "")).join(", ")}</span>
+            <span className="sg-b">
+              <span className="sg-k"><b>{fint(c.t.k)}</b><em>kcal · {fint(c.t.p)} g P</em></span>
+              <button className="plus" onClick={() => A.addItems(ctx, k, c.items, c.name)} aria-label={`Ajouter ${c.name}`}><Icon n="plus" size={18} sw={2.6} /></button>
+            </span>
           </div>
         ))}
       </div>
@@ -93,30 +96,32 @@ function MealRow({ e, k, ctx }) {
     if (name && name.trim()) { const undo = L.snapKey("favs"); L.saveFav(name.trim(), e.items); ctx.say("Ajouté à tes favoris", { undo }); }
   };
   return (
-    <div className={"ml" + (open ? " open" : "")}>
-      <button className="ml-h" onClick={() => setOpen(!open)} aria-expanded={open}>
-        <span className="ml-t">{e.t}</span>
-        <span><span className="ml-n">{e.label}</span><span className="ml-i">{e.items.filter((i) => i.fid !== "eau").map((i) => `${i.name.replace(/ \(.*\)/, "")}${i.g ? ` ${fint(i.g)} g` : ""}`).join(", ")}</span></span>
-        <span className="ml-k"><b>{fint(tot.k)}</b><span>{fint(tot.p)} g P</span></span>
-      </button>
-      {open && (
-        <div className="ml-b">
-          <div className="grid2">
-            <input className="inp" value={e.label} onChange={(ev) => upd((x) => ({ ...x, label: ev.target.value }))} aria-label="Nom du repas" />
-            <input className="inp" type="time" value={e.t} onChange={(ev) => upd((x) => ({ ...x, t: ev.target.value || x.t }))} aria-label="Heure" />
+    <div className={"tl-row" + (open ? " open" : "")}>
+      <span className="tl-t">{e.t}</span>
+      <div className="card ml">
+        <button className="ml-h" onClick={() => setOpen(!open)} aria-expanded={open}>
+          <span className="ml-m"><b>{e.label}</b><span className="ml-i">{e.items.filter((i) => i.fid !== "eau").map((i) => `${i.name.replace(/ \(.*\)/, "")}${i.g ? ` ${fint(i.g)} g` : ""}`).join(", ")}</span></span>
+          <span className="ml-k"><b>{fint(tot.k)}</b><em>{fint(tot.p)} g P</em></span>
+        </button>
+        {open && (
+          <div className="ml-b">
+            <div className="grid2">
+              <input className="inp" value={e.label} onChange={(ev) => upd((x) => ({ ...x, label: ev.target.value }))} aria-label="Nom du repas" />
+              <input className="inp" type="time" value={e.t} onChange={(ev) => upd((x) => ({ ...x, t: ev.target.value || x.t }))} aria-label="Heure" />
+            </div>
+            <ItemsEditor items={e.items}
+              onGrams={(i, g) => upd((x) => ({ ...x, items: x.items.map((it, j) => (j === i ? { ...it, g: g ?? 0 } : it)) }))}
+              onRemove={(i) => upd((x) => ({ ...x, items: x.items.filter((_, j) => j !== i) }))} />
+            <p className="hint">Glucides {fint(tot.c)} g · lipides {fint(tot.f)} g</p>
+            <div className="chips mt10">
+              <button className="chip" onClick={() => ctx.open({ type: "add", k, entryId: e.id })}>+ Aliment</button>
+              {k !== ctx.todayK && <button className="chip" onClick={() => { const undo = L.snapDay(ctx.todayK); L.addEntry(ctx.todayK, e.items, e.label); buzz(10); ctx.say("Refait aujourd'hui", { undo }); }}>Refaire aujourd'hui</button>}
+              <button className="chip" onClick={fav}><Icon n="star" size={14} /> Favori</button>
+              <button className="chip danger" onClick={() => A.deleteEntry(ctx, k, e)}>Supprimer</button>
+            </div>
           </div>
-          <ItemsEditor items={e.items}
-            onGrams={(i, g) => upd((x) => ({ ...x, items: x.items.map((it, j) => (j === i ? { ...it, g: g ?? 0 } : it)) }))}
-            onRemove={(i) => upd((x) => ({ ...x, items: x.items.filter((_, j) => j !== i) }))} />
-          <div className="kv"><span>Glucides · lipides</span><b>{fint(tot.c)} g · {fint(tot.f)} g</b></div>
-          <div className="chips mt10">
-            <button className="chip" onClick={() => ctx.open({ type: "add", k, entryId: e.id })}>+ Aliment</button>
-            {k !== ctx.todayK && <button className="chip" onClick={() => { const undo = L.snapDay(ctx.todayK); L.addEntry(ctx.todayK, e.items, e.label); buzz(10); ctx.say("Refait aujourd'hui", { undo }); }}>Refaire aujourd'hui</button>}
-            <button className="chip" onClick={fav}><Icon n="star" size={14} /> Favori</button>
-            <button className="chip danger" onClick={() => A.deleteEntry(ctx, k, e)}>Supprimer</button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

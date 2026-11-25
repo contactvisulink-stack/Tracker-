@@ -1,13 +1,12 @@
 // ═════════════════════════════════════════════════════════════
-// Sport : la séance du jour, ta forme, les charges exactes,
-// la progression, les records, la mobilité.
+// Sport : ta séance, ta forme, tes charges, ta progression, ta mobilité.
 // ═════════════════════════════════════════════════════════════
 import React, { useState, useMemo } from "react";
 import * as L from "./lib.js";
 import * as E from "./engine.js";
 import { Sheet, Icon, buzz, GramInput } from "./ui.jsx";
 import { PostureSection } from "./posture.jsx";
-import { Header, Sec, St, Bar, Spark, shortDay } from "./kit.jsx";
+import { Title, Sec, Cap, Ring, Area, Chip, shortDay } from "./kit.jsx";
 
 const { fint, fdec, fkg } = L;
 const shortDate = shortDay;
@@ -22,14 +21,15 @@ function target(pe, sg) {
 export function Sport({ ctx }) {
   const [tab, setTab] = useState(ctx.sub === "mob" ? "mob" : "gym");
   const tr = L.trainingStatus(ctx.todayK);
-  const sub = tr.todayW ? `${tr.todayW.title} faite` : tr.due ? `Séance ${tr.next} aujourd'hui` : `Repos · séance ${tr.next} ensuite`;
+  const kick = tr.todayW ? `${tr.todayW.title} faite aujourd'hui` : tr.due ? `Séance ${tr.next} aujourd'hui` : `Repos · séance ${tr.next} ensuite`;
   return (
     <div className="page">
-      <Header ctx={ctx} title="Sport" sub={`${sub} · ${tr.wk}/3 sem.`} />
-      <div className="seg" role="tablist">
-        <button role="tab" aria-selected={tab === "gym"} className={tab === "gym" ? "on" : ""} onClick={() => setTab("gym")}>Salle</button>
-        <button role="tab" aria-selected={tab === "mob"} className={tab === "mob" ? "on" : ""} onClick={() => setTab("mob")}>Mobilité et posture</button>
-      </div>
+      <Title ctx={ctx} kicker={kick} title="Sport">
+        <div className="seg" role="tablist">
+          <button role="tab" aria-selected={tab === "gym"} className={tab === "gym" ? "on" : ""} onClick={() => setTab("gym")}>Salle</button>
+          <button role="tab" aria-selected={tab === "mob"} className={tab === "mob" ? "on" : ""} onClick={() => setTab("mob")}>Mobilité et posture</button>
+        </div>
+      </Title>
       {tab === "gym" ? <Gym ctx={ctx} tr={tr} /> : <Mobility ctx={ctx} />}
     </div>
   );
@@ -48,77 +48,72 @@ function Gym({ ctx, tr }) {
   const rc = E.recharge(now);
   const vol = E.weeklyVolume(ctx.todayK, 8);
   const rec = E.records();
-  const recent = [...rec.events].reverse().slice(0, 5);
+  const recent = [...rec.events].reverse().slice(0, 4);
   const thisW = vol[vol.length - 1];
+  const status = tr.todayW ? "Faite aujourd'hui" : rc.ready ? "Prête" : `Prête dans ${Math.ceil(rc.cd)} h`;
   return (
     <>
-      <section className="pnl" aria-label="Forme du jour">
-        <div className="pnl-h"><span className="lbl">Forme du jour</span><St s={rd.adv.lv} label={rd.adv.t} /></div>
-        <div className="big xl"><b>{rd.pct}</b><span>%</span></div>
-        <p className="muted" style={{ marginTop: 6, fontSize: 14 }}>{rd.adv.s}</p>
-        <div className="facts">
-          <div className="fact"><span className="lbl">Nuit</span><b>{Math.round(rd.sl * 100)}<small>%{rd.sleepKnown ? "" : " est."}</small></b></div>
-          <div className="fact"><span className="lbl">Hier</span><b>{Math.round(rd.fy * 100)}<small>% kcal</small></b></div>
-          <div className="fact"><span className="lbl">Auj.</span><b>{Math.round(rd.ft * 100)}<small>% rythme</small></b></div>
-          <div className="fact"><span className="lbl">Créatine</span><b>{rd.crea}<small>/28 j</small></b></div>
+      <section className="card hero t-train" aria-label="Forme du jour">
+        <div className="hero-top"><span className="hero-l"><Icon n="bolt" size={15} /> Forme du jour</span><Chip s={rd.adv.lv}>{rd.adv.t}</Chip></div>
+        <div className="hero-row">
+          <div>
+            <div className="hero-n"><b className="grad-train">{rd.pct}</b><span>%</span></div>
+            <p className="hero-s" style={{ marginTop: 2 }}>{rd.adv.s}</p>
+          </div>
         </div>
-        <p className="hint">Forme = 45 % ta nuit, 35 % tes calories d'hier, 20 % ton rythme d'aujourd'hui. {rc.ready ? "Récupération depuis la dernière séance : complète." : `Récupération depuis la dernière séance : encore ${Math.ceil(rc.cd)} h (environ ${E.COOLDOWN_H} h entre deux full body).`}</p>
+        <div className="factors">
+          <span><em>Nuit</em><Cap v={rd.sl * 100} max={100} tone="sleep" h={5} /><b>{Math.round(rd.sl * 100)} %</b></span>
+          <span><em>Calories hier</em><Cap v={rd.fy * 100} max={100} tone="fuel" h={5} /><b>{Math.round(rd.fy * 100)} %</b></span>
+          <span><em>Rythme auj.</em><Cap v={rd.ft * 100} max={100} tone="fuel" h={5} /><b>{Math.round(rd.ft * 100)} %</b></span>
+          <span><em>Créatine</em><Cap v={rd.crea} max={28} tone="mass" h={5} /><b>{rd.crea}/28 j</b></span>
+        </div>
       </section>
 
-      <div className="ses" role="group" aria-label="Séances">
-        {PROG.map((p) => {
-          const last = ws.find((w) => w.session === p.day);
-          const doneToday = tr.todayW?.session === p.day;
-          const isNext = p.day === tr.next && !tr.todayW;
-          const st = doneToday ? "Faite aujourd'hui" : isNext ? (rc.ready ? "Prête" : `Dans ${Math.ceil(rc.cd)} h`) : last ? `Faite ${shortDate(last.date.slice(0, 10)).toLowerCase()}` : "Jamais faite";
-          return (
-            <button key={p.day} className={sel === p.day ? "on" : ""} onClick={() => { setSel(p.day); setOpen(null); }} aria-pressed={sel === p.day}>
-              <span className="lbl">Full body</span>
-              <span className="ses-l">{p.day}</span>
-              <span className={"ses-s" + (doneToday || (isNext && rc.ready) ? " ok" : "")}>{st}</span>
-              {isNext && !rc.ready && <span className="ses-cd" style={{ width: `${(1 - rc.frac) * 100}%` }} />}
-            </button>
-          );
-        })}
-      </div>
-
-      {diffs.map((df) => <DiffCard key={df.w.id + df.day} df={df} ctx={ctx} onDone={() => setSel(df.day)} />)}
-
-      <Sec code={sel} title={`Charges · ${prog.exs.length} exercices`} right="Modifier" onRight={() => ctx.open({ type: "program", day: prog.day })}>
-        <div className="ex-t">
+      <Sec title={`Full body ${prog.day}`} right={sel === (tr.todayW?.session || tr.next) ? status : null}>
+        <div className="seg small3" role="group" aria-label="Séances">
+          {PROG.map((p) => {
+            const last = ws.find((w) => w.session === p.day);
+            return (
+              <button key={p.day} className={sel === p.day ? "on" : ""} onClick={() => { setSel(p.day); setOpen(null); }} aria-pressed={sel === p.day}>
+                <b>{p.day}</b><small>{tr.todayW?.session === p.day ? "aujourd'hui" : last ? shortDate(last.date.slice(0, 10)).toLowerCase().replace(/ \d+ \w+$/, "") : "jamais"}</small>
+              </button>
+            );
+          })}
+        </div>
+        {diffs.map((df) => <DiffCard key={df.w.id + df.day} df={df} ctx={ctx} onDone={() => setSel(df.day)} />)}
+        <div className="card list mt10">
           {prog.exs.map((pe) => <ExRow key={pe.key} pe={pe} ws={ws} open={open === pe.key} onToggle={() => setOpen(open === pe.key ? null : pe.key)} />)}
         </div>
         <div className="btn-row">
           <button className="btn ghost" onClick={() => ctx.open({ type: "hevy" })} aria-label="Importer une séance Hevy"><Icon n="clip" size={16} /> Importer Hevy</button>
-          <button className="btn ghost" onClick={() => ctx.open({ type: "program", day: prog.day })} aria-label={`Modifier la séance ${prog.day}`}><Icon n="pen" size={16} /> Modifier {prog.day}</button>
+          <button className="btn ghost" onClick={() => ctx.open({ type: "program", day: prog.day })} aria-label={`Modifier la séance ${prog.day}`}><Icon n="pen" size={16} /> Modifier</button>
         </div>
       </Sec>
 
-      <Sec code="V" title="Volume" right={`${thisW.sets} séries cette semaine`}>
-        <div className="pnl" style={{ marginTop: 0 }}>
-          <div className="pnl-h"><span className="lbl">Tonnage par semaine (kg × reps)</span><span className="mono muted" style={{ fontSize: 12 }}>{fint(thisW.vol)} kg</span></div>
-          <Spark values={vol.map((v) => v.vol || null)} bars color={(v) => "var(--train)"} h={48} w={300} min={0} />
-          <div className="scale"><span>il y a 7 sem.</span><span>cette semaine</span></div>
+      <Sec title="Progression">
+        <div className="card chartc">
+          <div className="chartc-h"><span><em>Volume soulevé cette semaine</em><b>{fint(thisW.vol)} kg</b></span><Chip>{thisW.sets} séries</Chip></div>
+          <Area values={vol.map((v) => v.vol || null)} bars tone="train" h={70} w={320} min={0} />
+          <div className="axis"><span>il y a 7 semaines</span><span>cette semaine</span></div>
         </div>
+        {recent.length > 0 && (
+          <div className="card list mt10">
+            {recent.map((e, i) => (
+              <div key={i} className="row">
+                <span className="bub sm t-ok"><Icon n="trophy" size={15} /></span>
+                <span className="row-m"><b>{e.name}</b><span>{shortDate(e.k)}</span></span>
+                <span className="row-v"><b>{e.set.w ? `${fdec(e.set.w, 2)} kg × ${e.set.r}` : `${e.set.r} reps`}</b><span className="c-ok">record</span></span>
+              </div>
+            ))}
+          </div>
+        )}
       </Sec>
 
-      <Sec code="R" title="Records" right={`${rec.events.length} au total`}>
-        <div className="box">
-          {!recent.length && <div className="empty-l">Ton premier record apparaîtra dès qu'une séance bat ta meilleure perf.</div>}
-          {recent.map((e, i) => (
-            <div key={i} className="sg" style={{ gridTemplateColumns: "1fr auto" }}>
-              <span className="sg-n">{e.name}<small>{shortDate(e.k)}</small></span>
-              <span className="sg-v"><b>{e.set.w ? `${fdec(e.set.w, 2)} kg × ${e.set.r}` : `${e.set.r} reps`}</b><span className="c-ok">+{fdec(e.e1rm - e.prev, 1)} kg de force est.</span></span>
-            </div>
-          ))}
-        </div>
-      </Sec>
-
-      <Sec code="H" title="Historique" right={`${ws.length} séances`}>
-        <div className="pnl" style={{ marginTop: 0, paddingTop: 4, paddingBottom: 4 }}>
-          {!ws.length && <p className="muted" style={{ padding: "10px 0" }}>Aucune séance importée.</p>}
-          {ws.slice(0, all ? 100 : 5).map((w) => <WorkoutRow key={w.id} w={w} ctx={ctx} />)}
-          {ws.length > 5 && <button className="link" style={{ padding: "10px 0" }} onClick={() => setAll(!all)}>{all ? "Voir moins" : "Tout voir"}</button>}
+      <Sec title="Historique" right={`${ws.length} séances`}>
+        <div className="card list pad">
+          {!ws.length && <p className="muted" style={{ padding: "12px 0" }}>Aucune séance importée.</p>}
+          {ws.slice(0, all ? 100 : 4).map((w) => <WorkoutRow key={w.id} w={w} ctx={ctx} />)}
+          {ws.length > 4 && <button className="link" style={{ padding: "12px 0" }} onClick={() => setAll(!all)}>{all ? "Voir moins" : "Tout voir"}</button>}
         </div>
       </Sec>
     </>
@@ -131,24 +126,23 @@ function ExRow({ pe, ws, open, onToggle }) {
   const p1 = E.plusOne(pe, sg);
   const hist = open ? L.exHistory(pe.key, ws, 8) : [];
   return (
-    <div className={"ex " + tl.cls}>
+    <div className={"ex " + tl.cls + (open ? " open" : "")}>
       <button className="ex-h" onClick={onToggle} aria-expanded={open} aria-label={`${pe.name} : ${tl.w}, ${tl.tag}`}>
-        <span>
-          <span className="ex-n">{pe.name}</span>
-          <span className="ex-s" style={{ display: "block" }}>{pe.sets}×{pe.min}-{pe.max} · repos {pe.rest}{sg.last ? ` · dernière ${setsTxt(sg.last.all)}` : ""}</span>
-          {p1 && <span className="ex-p" style={{ display: "block" }}>+1 rep : {p1.to.map((r, i) => (i === p1.i ? <em key={i}>{r}</em> : <React.Fragment key={i}>{r}</React.Fragment>)).reduce((a, x, i) => (i ? [...a, " · ", x] : [x]), [])}</span>}
+        <span className="ex-m">
+          <b>{pe.name}</b>
+          <span>{pe.sets} × {pe.min}-{pe.max} · repos {pe.rest}</span>
+          {p1 && <span className="ex-p">+1 rep : {p1.to.map((r, i) => (i === p1.i ? <em key={i}>{r}</em> : <React.Fragment key={i}>{r}</React.Fragment>)).reduce((a, x, i) => (i ? [...a, " · ", x] : [x]), [])}</span>}
         </span>
-        <span className="ex-l"><b>{tl.w}</b>{tl.tag && <span>{tl.tag}</span>}</span>
-        <Icon n="chevron" size={16} style={{ color: "var(--dim)", transform: open ? "rotate(180deg)" : "none", transition: "transform .2s" }} />
+        <span className="load"><b>{tl.w}</b>{tl.tag && <span>{tl.tag}</span>}</span>
       </button>
       {open && (
         <div className="ex-b">
-          <p className="muted" style={{ fontSize: 13 }}>{tl.why}</p>
+          <p className="muted">{tl.why}</p>
           {sg.drop && <p className="warn-txt">Ta dernière série a chuté : prends 3 min de repos avant elle.</p>}
           {hist.length >= 2 && (
-            <div style={{ margin: "10px 0" }}>
-              <div className="lbl" style={{ marginBottom: 4 }}>Force estimée (meilleure série)</div>
-              <Spark values={hist.map((h) => h.best).reverse()} color="var(--ok)" h={40} w={300} dots />
+            <div className="mt10">
+              <em className="cap-l">Force estimée sur ta meilleure série</em>
+              <Area values={hist.map((h) => h.best).reverse()} tone="ok" h={50} w={300} dots />
             </div>
           )}
           {hist.map((h, i) => <div key={i} className="hist-row"><span>{shortDate(h.date.slice(0, 10))}</span><span>{setsTxt(h.sets)}</span></div>)}
@@ -159,33 +153,32 @@ function ExRow({ pe, ws, open, onToggle }) {
   );
 }
 
-// ── Mobilité : 4 tests à refaire de temps en temps, puis la routine posture
+// ── Mobilité : 4 tests à refaire chaque semaine, puis la routine posture
 function Mobility({ ctx }) {
   const mob = E.getMob();
   const k = ctx.todayK;
   return (
     <>
-      <Sec code="M" title="Tests de mobilité" right="à refaire chaque semaine">
-        <div className="mob">
+      <Sec title="Tests de mobilité" right="1 fois par semaine">
+        <div className="mobs">
           {E.MOB_TESTS.map((t) => {
             const h = Array.isArray(mob[t.id]) ? mob[t.id] : [];
             const last = h[h.length - 1];
             const today = last && last.k === k ? last.lv : null;
             return (
-              <div key={t.id} className="mob-r">
-                <div className="mob-h"><span className="mob-n">{t.n}</span><span className="mob-d">{last ? (last.k === k ? "testé aujourd'hui" : `dernier test ${shortDate(last.k).toLowerCase()}`) : "jamais testé"}</span></div>
-                <div className="mob-how">{t.how}</div>
+              <div key={t.id} className="card mob">
+                <div className="mob-h"><b>{t.n}</b>{h.length > 0 && <span className="mob-hist" aria-label="Historique">{h.slice(-8).map((x, i) => <i key={i} className={"lv" + x.lv} title={`${x.k} : ${t.lv[x.lv]}`} />)}</span>}</div>
+                <p>{t.how}</p>
                 <div className="mob-lv" role="group" aria-label={t.n}>
-                  {t.lv.map((l, i) => <button key={i} className={"l" + i + (today === i ? " on" : "")} aria-pressed={today === i} onClick={() => { const undo = L.snapKey("mob"); E.setMob(t.id, i, k); buzz(8); ctx.say(`${t.n} : ${l.toLowerCase()}`, { undo }); }}>{l}</button>)}
+                  {t.lv.map((l, i) => <button key={i} className={"lv" + i + (today === i ? " on" : "")} aria-pressed={today === i} onClick={() => { const undo = L.snapKey("mob"); E.setMob(t.id, i, k); buzz(8); ctx.say(`${t.n} : ${l.toLowerCase()}`, { undo }); }}>{l}</button>)}
                 </div>
-                {h.length > 0 && <div className="mob-hist" aria-label="Historique">{h.slice(-16).map((x, i) => <i key={i} className={"l" + x.lv} title={`${x.k} : ${t.lv[x.lv]}`} />)}</div>}
               </div>
             );
           })}
         </div>
-        <p className="hint">Note où tu en es, pas où tu voudrais être. Le but : voir ces barres passer au vert en quelques semaines grâce à la routine ci-dessous.</p>
+        <p className="hint">Note où tu en es, pas où tu voudrais être. Le but : voir ces points passer au vert grâce à la routine ci-dessous.</p>
       </Sec>
-      <Sec code="P" title="Routine posture">
+      <Sec title="Routine posture">
         <PostureSection ctx={ctx} />
       </Sec>
     </>

@@ -84,7 +84,7 @@ def init_script(data, extra=None):
 FONTS = "/home/claude/fonts/node_modules/@fontsource"
 def route_fonts(page):
     faces = []
-    for fam, pkg, weights in (("Inter Tight", "inter-tight", (400, 500, 600, 700)), ("JetBrains Mono", "jetbrains-mono", (400, 500, 600))):
+    for fam, pkg, weights in (("Inter", "inter", (400, 500, 600, 700)),):
         for w in weights:
             faces.append(f"@font-face{{font-family:'{fam}';font-weight:{w};font-style:normal;src:url(https://fonts.gstatic.com/l/{pkg}-latin-{w}-normal.woff2) format('woff2');}}")
             faces.append(f"@font-face{{font-family:'{fam}';font-weight:{w};font-style:normal;unicode-range:U+0100-024F;src:url(https://fonts.gstatic.com/l/{pkg}-latin-ext-{w}-normal.woff2) format('woff2');}}")

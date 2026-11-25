@@ -38,7 +38,7 @@ async function installUpdate() {
   location.reload();
 }
 
-const TABS = [["status", "home", "Status"], ["fuel", "fork", "Carburant"], ["sport", "dumbbell", "Sport"], ["lab", "chart", "Analyse"]];
+const TABS = [["status", "home", "Aujourd'hui"], ["fuel", "fork", "Repas"], ["sport", "dumbbell", "Sport"], ["lab", "chart", "Analyse"]];
 
 function App() {
   const [, setRev] = useState(0);
@@ -84,22 +84,16 @@ function App() {
         {tab === "lab" && <Lab ctx={ctx} />}
       </main>
 
-      <nav className="dock" aria-label="Console et navigation">
-        <div className="dock-in">
-          <button className="cbar" onClick={() => ctx.console("", tab === "fuel" ? viewK : todayK)} aria-label="Ouvrir la console pour noter quelque chose">
-            <span className="cbar-p" aria-hidden="true">›</span>
-            <span className="cbar-t">Repas, eau, créatine, poids, nuit…</span>
-            <span className="cbar-k" aria-hidden="true"><Icon n="plus" size={18} sw={2.4} /></span>
+      <nav className="tabbar" aria-label="Navigation">
+        {TABS.map(([id, ic, label]) => (
+          <button key={id} className={"tab" + (tab === id ? " on" : "")} onClick={() => ctx.go(id)} aria-current={tab === id ? "page" : undefined}>
+            <Icon n={ic} size={21} sw={tab === id ? 2.1 : 1.7} />
+            <span>{label}</span>
           </button>
-          <div className="tabs">
-            {TABS.map(([id, ic, label]) => (
-              <button key={id} className={"tab" + (tab === id ? " on" : "")} onClick={() => ctx.go(id)} aria-current={tab === id ? "page" : undefined}>
-                <Icon n={ic} size={20} sw={tab === id ? 2 : 1.6} />
-                <span>{label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        ))}
+        <button className="fab" onClick={() => ctx.console("", tab === "fuel" ? viewK : todayK)} aria-label="Noter quelque chose : repas, eau, créatine, poids, nuit">
+          <Icon n="plus" size={24} sw={2.6} />
+        </button>
       </nav>
 
       {update && !sheet && (

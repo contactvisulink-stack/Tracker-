@@ -70,7 +70,7 @@ export function ConsoleSheet({ ctx, init = "", k: k0 }) {
   const append = (s) => change((txt.trim() ? txt.trim().replace(/,$/, "") + ", " : "") + s);
 
   return (
-    <Sheet title="Console" onClose={ctx.close} tall
+    <Sheet title="Noter" onClose={ctx.close} tall
       footer={<div className="btn-row" style={{ marginTop: 0 }}>
         <button className="btn ghost" onClick={() => ctx.open({ type: "add", k, mode: "photo" })}><Icon n="camera" size={16} /> Photo</button>
         <button className="btn ghost" onClick={() => ctx.open({ type: "add", k, mode: "search" })}><Icon n="search" size={16} /> Chercher</button>
